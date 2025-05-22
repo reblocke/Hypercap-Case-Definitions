@@ -1,10 +1,8 @@
 * Hypercapnia TriNetX Computable Phenotype Analysis
-* Updated 4/14/2023 BWL
 
 /* ---------
 OVERALL TODO LIST
-
-
+---
 -----------*/
 
 capture log close
@@ -12,21 +10,19 @@ capture log close
 * Load data
 clear
 
-//Replace with your working directory**
+/* Specify working direction */ 
 //cd "C:\Users\reblo\Box\Residency Personal Files\Scholarly Work\Locke Research Projects\TriNetX Code" 
 cd "/Users/blocke/Box Sync/Residency Personal Files/Scholarly Work/Locke Research Projects/TriNetX Code"
+//cd "/Users/reblocke/Research/trinetx-hypercapnia-code"
 
-
-program define datetime 
-end
-
+/* Create logging / output directories */ 
 capture mkdir "Results and Figures"
 capture mkdir "Results and Figures/$S_DATE/" //make new folder for figure output if needed
 capture mkdir "Results and Figures/$S_DATE/Logs/" //new folder for stata logs
 local a1=substr(c(current_time),1,2)
 local a2=substr(c(current_time),4,2)
 local a3=substr(c(current_time),7,2)
-local b = "Hypercapnia Case Defintions.do" // do file name
+local b = "Hypercapnia Computable Phenotype.do" // do file name
 copy "`b'" "Results and Figures/$S_DATE/Logs/(`a1'_`a2'_`a3')`b'"
 
 set scheme cleanplots
@@ -36,7 +32,6 @@ log using temp.log, replace
 clear
 cd "Data"
 use full_db
-//use subsample_db_5_perc
 cd ..
 
 /* -----------------------
@@ -91,50 +86,35 @@ end
    Pre-processing 
 --------------------*/ 
 
-
-
-/* Impute missing abg_ph from serum_hco3 if there is no pH*/ 
-//pH = 6.1 + log (HCO3-/ (0.03 x PCO2))
-gen predictor_hco3 = abg_hco3
-replace predictor_hco3 = serum_hco3 if missing(abg_hco3)
-replace abg_ph = 6.1 + log10(predictor_hco3/(0.03 * paco2)) if !missing(predictor_hco3) & !missing(paco2) & missing(abg_ph)
-drop predictor_hco3
-
-gen predictor_hco3 = vbg_hco3
-replace predictor_hco3 = serum_hco3 if missing(vbg_hco3)
-replace vbg_ph = 6.1 + log10(predictor_hco3/(0.03 * vbg_co2)) if !missing(predictor_hco3) & !missing(vbg_co2) & missing(vbg_ph)
-drop predictor_hco3
-
-gen abg_vbg_confusion_matrix = 0
-replace abg_vbg_confusion_matrix = 1 if has_abg == 1
-replace abg_vbg_confusion_matrix = 2 if has_vbg == 1
-replace abg_vbg_confusion_matrix = 3 if has_abg == 1 & has_vbg == 1
-label variable abg_vbg_confusion_matrix "ABG or VBG Obtained?"
-label define abg_vbg_confusion_matrix_label 0 "Neither ABG or VBG obtained on Day 1" 1 "Only ABG obtained on day 1" 2 "Only VBG obtained on day 1" 3 "Both ABG and VBG obtained on day 1"
-label values abg_vbg_confusion_matrix abg_vbg_confusion_matrix_label 
-
-tab abg_vbg_confusion_matrix, missing
-
-
-///-----
-//[ ] remove above to preprocessing
-////////
-
-replace is_inp = 0 if missing(is_inp) //not sure why is_emer has this missing but is_inp doesn't
-replace paco2_flag = 0 if !missing(paco2) & paco2 >= 45 & prim_met_alk == 1
-//[ ] TODO: adjust ABG-VBG flag as well
-
+replace is_inp = 0 if missing(is_inp) 
 // Restrict to ONLY inpatient and emergency
 keep if is_inp == 1 | is_emer == 1
 
+// Responses to Reviewers: 
+/*
+1.	How often primary metabolic alkalosis with respiratory compensation exclusively explains the elevated PaCO2
+2.	How often alkalemia is present among patients with PaCO2 ≥ 45 mmHg, suggesting a metabolic alkalosis is present and may at least partially contribute to the elevated PaCO2. 
+*/ 
 
+//Number of primary metabolic conditions. 
+tab prim_met_alk
+tab combo_met_alk
+
+//Testing Strategy label
+gen abg_vbg_confusion_matrix = 0  // Default to "Has neither"
+replace abg_vbg_confusion_matrix = 1 if has_abg == 1 & has_vbg == 0  // "Has ABG"
+replace abg_vbg_confusion_matrix = 2 if has_abg == 0 & has_vbg == 1  // "Has VBG"
+replace abg_vbg_confusion_matrix = 3 if has_abg == 1 & has_vbg == 1  // "Has Both"
+label define abg_vbg_labels 0 "Has neither" 1 "Only ABG obtained (first day)" 2 "Only VBG obtained (first day)" 3 "Both ABG and VBG obtained (first day)"
+label values abg_vbg_confusion_matrix abg_vbg_labels
+
+missings table paco2
+missings table vbg_co2
 
 //-----------------
 /* Main Analysis */ 
 //-----------------
-
 //Summarizing Demographics of the Entire Emulation Cohort
-
 tab first_encounter, missing
 
 table1_mc,  ///
@@ -170,7 +150,6 @@ table1_mc,  ///
 /* Agreement Analysis */ 
 //--------------
 
-
 // -----------------------------
 // SECTION 2: A review of currently available cohort definitions: 
 // Systematic Review methods: 
@@ -180,7 +159,7 @@ table1_mc,  ///
 Generate Flags for various study definitions in use 
 */
 
-/* ICU */
+/* ICU (not simulated)*/
 //Adler PaCO2 over 47.25 mmHg. NIV or IMV treatment	 Exclude: neuromuscular disease, prognosis < 3 months, iatrogenic hypercapnia, persistent confusion
 gen def1 = (paco2 >= 47.25 & vent_proc == 1) if !missing(paco2, vent_proc)
 replace def1 = 0 if missing(def1)
@@ -195,11 +174,11 @@ label variable def2 "Thille"
 label define thille_lab 1 "Thille"
 label values def2 thille_lab
 
-//Ouanes-Besbes pH < 7.35 and PaCO2 > 45 mmHg (no OSA workup, but that's because they're going to be worked up... hm)
+//Ouanes-Besbes pH < 7.35 and PaCO2 > 45 mmHg (& no OSA workup - non-simulated)
 gen def3 = (paco2 >= 45 & abg_ph < 7.35) if !missing(paco2, abg_ph)
 replace def3 = 0 if missing(def3)
-label variable def3 "Ouanes-Besbes, Bülbül"
-label define ouanes_lab 1 "Ouanes-Besbes, Bülbül"
+label variable def3 "Ouanes-Besbes"
+label define ouanes_lab 1 "Ouanes-Besbes"
 label values def3 ouanes_lab
 
 /* Hospitalized / ED  (No ICU requirement) */ 
@@ -210,54 +189,61 @@ label variable def4 "Calvo"
 label define segreelles_lab 1 "Calvo"
 label values def4 segreelles_lab
 
-//Bulbul is the same as Ouanes-Besbes
+//Reviewers Bulbul is NOT the same as Ouanes-Besbes **
+//Bulbul - just PaCO2 >= 45 mmHg 
+gen def5 = hypercap_on_abg
+replace def5 = 0 if missing(def5)
+label variable def5 "Bülbül"
+label define bulbul_lab 1 "Bülbül"
+label values def5 bulbul_lab
 
 
 //Meservey et al 2020:  Admit with code for hypercapnic respiratory failure, exclude Advanced cancer, trauma, stroke, seizure, cardiac arrest, advanced neurologic disease, serious non-pulmonary illness. 
-gen def5 = hypercap_resp_failure
-replace def5 = 0 if missing(def5)
-label variable def5 "Meservey"
+gen def6 = hypercap_resp_failure
+replace def6 = 0 if missing(def6)
+label variable def6 "Meservey"
 label define meservey_lab 1 "Meservey" 
-label values def5 meservey_lab
+label values def6 meservey_lab
 
 //Vonderbank We preferred capillary blood gas analysis but also included patients with arterial blood gas analysis and some patients with only venous blood gas analysis. (Arterial blood gas analysis is the gold standard in the measurement of blood gases. However, the procedure to obtain arterial blood gas data is painful. Arterialized capillary gases sampled at the ear lobe give similar results for pH and pCO2.2 The interpretation of venous blood gas data is more difficult. The pH is slightly lower (0.02–0.04 pH units) and the pCO2 is slightly higher (3–8 mmHg). However, differences can be greater in patients with hypotension and they depend on local metabolism. We only used venous blood gases if the pCO2 was <45 mmHg and pH was >7.35, which allowed hypercapnia and acidosis to be excluded.3,4 If the pH was also >7.35 and oxygen saturation (measured by pulse oximetry) was normal, additional blood gases were unnecessary but, if not, arterial blood gas data were obtained.)
-gen def6 = (paco2 >= 45 & !missing(paco2)) | (vbg_co2 >= 45 & vbg_ph >= 7.35 & !missing(vbg_co2, vbg_ph))
-replace def6 = 0 if missing(def6)
-label variable def6 "Vonderbank"
+gen def7 = (paco2 >= 45 & !missing(paco2)) | (vbg_co2 >= 45 & vbg_ph >= 7.35 & !missing(vbg_co2, vbg_ph))
+replace def7 = 0 if missing(def7)
+label variable def7 "Vonderbank"
 label define vonderbank_lab 1 "Vonderbank" 
-label values def6 vonderbank_lab
+label values def7 vonderbank_lab
 
 //Wilson et al: PaCO2 over 45 and pH 7.35-45
-gen def7 = (paco2 >= 45 & abg_ph >= 7.35 & abg_ph <= 7.45) if !missing(paco2, abg_ph)
-replace def7 = 0 if missing(def7)
-label variable def7 "Wilson"
+gen def8 = (paco2 >= 45 & abg_ph >= 7.35 & abg_ph <= 7.45) if !missing(paco2, abg_ph)
+replace def8 = 0 if missing(def8)
+label variable def8 "Wilson"
 label define wilson_lab 1 "Wilson" 
-label values def7 wilson_lab
+label values def8 wilson_lab
 
 //ED
 //Cavalot* pH <7.35 paCO2 >45 or VBG ph <7.34 and CO2 50; excluding cystic fibrosis, neuromuscular disease, ILD, lung cancer, drug overdose, or tracheostomy.
-gen def8 = ( (paco2 >= 45 & abg_ph < 7.35) | (vbg_co2 >= 50 & vbg_ph < 7.34) ) if !missing(paco2, abg_ph) | !missing(vbg_co2, vbg_ph)
-replace def8 = 0 if missing(def8)
-label variable def8 "Cavalot"
+gen def9 = ((paco2 >= 45 & abg_ph <= 7.35) | (vbg_co2 >= 50 & vbg_ph <= 7.34) ) if !missing(paco2, abg_ph) | !missing(vbg_co2, vbg_ph)
+replace def9 = 0 if missing(def9)
+label variable def9 "Cavalot"
 label define cavalot_lab 1 "Cavalot"
 label values def8 cavalot_lab 
 
 //Chung et al 2021: PaCO2 over 45 - exclude Iatrogenic causes, trauma, post-arrest. 
-gen def9 = hypercap_on_abg
-replace def9 = 0 if missing(def9)
-label variable def9 "Chung"
+gen def10 = (paco2 >= 45 & abg_ph < 7.45) if !missing(paco2, abg_ph)
+replace def10 = 0 if missing(def10)
+label variable def10 "Chung"
 label define chung_lab 1 "Chung"
-label values def9 chung_lab
+label values def10 chung_lab
 
 
-list hypercap_resp_failure paco2 vbg_co2 vbg_po2 vbg_ph niv_proc imv_proc acidemia def1 def2 def3 def4 def5 def6 def7 def8 def9 in 1/200
+list hypercap_resp_failure paco2 vbg_co2 vbg_po2 vbg_ph niv_proc imv_proc acidemia def1 def2 def3 def4 def5 def6 def7 def8 def9 def10 in 1/200
 
 /* Ones I can't do */ 
-//Domaradzki et al: Diagnostic code for COPD or respiratory failure & VBG (they did not separate into dichotomous groups)
+//Domaradzki et al: Diagnostic code for COPD or respiratory failure & VBG (they did not separate into dichotomous groups) - not actually include as not general. 
 //Vonderbank: Arterialized capillary blood gas CO2 > 45 mmHg
 //Bulbul - paco2 at two time points over 45 (can't get this)
 // Fox et al - referral on discharge (we can't get this)
 // Brandao - NIV outside the ICU (can't get this)
+//Can't do nowbar given prospective assessment 
 /*
 //Gursel Hypercapnia treated with NIV // Remove - as this is only acute outcomes. 
 gen def4 = (paco2 >= 45 & vent_proc == 1)
@@ -272,13 +258,11 @@ label variable def10 "Marik"
 label define marik_lab 1 "Marik"
 label values def10 marik_lab
 */ 
-//Can't do nowbar given prospective assessment 
-
 
 //10 = the number of definitions
-matrix rel_sens = J(9, 9, .)
-forval i = 1/9 {
-    forval j = 1/9 {
+matrix rel_sens = J(10, 10, .)
+forval i = 1/10 {
+    forval j = 1/10 {
         if `i' == `j' {
             matrix rel_sens[`i', `j'] = .
         }
@@ -299,8 +283,8 @@ forval i = 1/9 {
     }
 }
 matrix list rel_sens
-matrix rownames rel_sens = "Adler" "Thille" "Ouanes-Besbes, Bülbül" "Calvo" "Meservey*" "Vonderbank" "Wilson" "Cavalot" "Chung**"
-matrix colnames rel_sens = "Adler" "Thille" "Ouanes-Besbes, Bülbül" "Calvo" "Meservey*" "Vonderbank" "Wilson" "Cavalot" "Chung**"
+matrix rownames rel_sens = "Adler" "Thille" "Ouanes-Besbes" "Calvo" "Bülbül" "Meservey" "Vonderbank" "Wilson" "Cavalot" "Chung"
+matrix colnames rel_sens = "Adler" "Thille" "Ouanes-Besbes" "Calvo" "Bülbül" "Meservey" "Vonderbank" "Wilson" "Cavalot" "Chung"
 
 heatplot rel_sens, ///
  aspectratio(0.8) ///
@@ -317,32 +301,37 @@ heatplot rel_sens, ///
  xsize(5) ysize(5)
 graph export "Results and Figures/$S_DATE/Definition Overlap HeatPlot.png", as(png) name("Graph") replace
 
-//should I flip the side of either the Y or the X-axis? (and then change the angle to -45)
+matrix agreement_results = J(10, 10, .)
+matrix kappa_results = J(10, 10, .)
+matrix pabak_results = J(10, 10, .)
 
-matrix kappa_results = J(9, 9, .)
-forval i = 1/9 {
-    forval j = 1/9 {
+forval i = 1/10 {
+    forval j = 1/10 {
         if `i' <= `j' {
             if `i' == `j' { 
+				matrix agreement_results[`i', `j'] = . // Perfect agreement with itself
 				matrix kappa_results[`i', `j'] = . // Perfect agreement with itself
+				matrix pabak_results[`i', `j'] = . // Perfect agreement with itself
 			} //Otherwise skip, so we're just doing the lower  corners
         }
         else {
             // Calculate kappa for def`i' and def`j'
-            kap def`i' def`j'
-            
+			kap def`i' def`j'
             // Retrieve the kappa statistic and store it in the matrix
             matrix kappa_results[`i', `j'] = r(kappa)
+			matrix agreement_results[`i', `j'] = r(prop_o)
+			
+			//PABAK
+			kappaetc def`i' def`j'
+			matrix pabak_results[`i', `j'] = r(b)[1,2]   // Brennan-Prediger aka PABAK is the 2nd coefficient
         }
     }
 }
 
-// Now, you can display the matrix or use it as needed.
-//To fix the hanging labels, might need to drop down to 8 x 8 table ... would take a bit more work
-
+/* Kappa */
 matrix list kappa_results
-matrix rownames kappa_results = "Adler" "Thille" "Ouanes-Besbes, Bülbül" "Calvo" "Meservey*" "Vonderbank" "Wilson" "Cavalot" "Chung**"
-matrix colnames kappa_results = "Adler" "Thille" "Ouanes-Besbes, Bülbül" "Calvo" "Meservey*" "Vonderbank" "Wilson" "Cavalot" "Chung**"
+matrix rownames kappa_results = "Adler" "Thille" "Ouanes-Besbes" "Calvo" "Bülbül" "Meservey" "Vonderbank" "Wilson" "Cavalot" "Chung"
+matrix colnames kappa_results = "Adler" "Thille" "Ouanes-Besbes" "Calvo" "Bülbül" "Meservey" "Vonderbank" "Wilson" "Cavalot" "Chung"
 
 heatplot kappa_results, ///
  aspectratio(0.65) ///
@@ -357,21 +346,270 @@ heatplot kappa_results, ///
  xsize(5) ysize(5)
 graph export "Results and Figures/$S_DATE/Definition Overlap HeatPlot - Kappa.png", as(png) name("Graph") replace
 
+/* Raw Agreement */ 
+matrix list agreement_results
+matrix rownames agreement_results = "Adler" "Thille" "Ouanes-Besbes" "Calvo" "Bülbül" "Meservey" "Vonderbank" "Wilson" "Cavalot" "Chung"
+matrix colnames agreement_results = "Adler" "Thille" "Ouanes-Besbes" "Calvo" "Bülbül" "Meservey" "Vonderbank" "Wilson" "Cavalot" "Chung"
+
+heatplot agreement_results, ///
+ aspectratio(0.65) ///
+ cuts(0(0.05)1) ///
+ xlabel(,angle(45) labsize(medsmall)) ///
+ ylabel(,angle(45) labsize(medsmall)) ///
+ legend(off) ///
+ p(lcolor(black%10) lwidth(*0.15)) ///
+ values(format(%4.2f) size(small) color(white)) ///
+ title("Raw Agreement Between of Case Definitions", size(medsmall)) ///
+ color(RdYlGn, intensify(1.25)) ///
+ xsize(5) ysize(5)
+graph export "Results and Figures/$S_DATE/Definition Overlap HeatPlot - Agreement.png", as(png) name("Graph") replace
+
+/* PABAK */ 
+matrix list pabak_results
+matrix rownames pabak_results = "Adler" "Thille" "Ouanes-Besbes" "Calvo" "Bülbül" "Meservey" "Vonderbank" "Wilson" "Cavalot" "Chung"
+matrix colnames pabak_results = "Adler" "Thille" "Ouanes-Besbes" "Calvo" "Bülbül" "Meservey" "Vonderbank" "Wilson" "Cavalot" "Chung"
+
+heatplot pabak_results, ///
+ aspectratio(0.65) ///
+ cuts(0(0.05)1) ///
+ xlabel(,angle(45) labsize(medsmall)) ///
+ ylabel(,angle(45) labsize(medsmall)) ///
+ legend(off) ///
+ p(lcolor(black%10) lwidth(*0.15)) ///
+ values(format(%4.2f) size(small) color(white)) ///
+ title("Prevalence and Bias-Adjusted Kappa between Case Definitions", size(small)) ///
+ color(RdYlGn, intensify(1.25)) ///
+ xsize(5) ysize(5)
+graph export "Results and Figures/$S_DATE/Definition Overlap HeatPlot - PABAK.png", as(png) name("Graph") replace
+
+/* 
+Alternative method of multi-rater agreement evaluation 
+*/ 
+kappaetc def1 def2 def3 def4 def5 def6 def7 def8 def9 def10 // Cohen would have been an alterantive way to Median Kappa
+
 preserve
 //Calculate Median and IQR range
 svmat kappa_results, name(kappa_value) //makes separate column for each
 drop if missing(kappa_value1) //has the most ; this is to make this go fast (or it will try to reshape the whole dataset)
 gen id = _n
 reshape long kappa_value, i(id) j(column)
-summarize kappa_value, detail
+summarize kappa_value, detail // main result
 sort kappa_value
 list kappa_value 
+summarize kappa_value if kappa_value > 0, detail // sensitivity excluding 4 structurally conflicting case definitions.
 restore
+
+preserve
+//Calculate Median and IQR range
+svmat agreement_results, name(agreement_value) //makes separate column for each
+drop if missing(agreement_value1) //has the most ; this is to make this go fast (or it will try to reshape the whole dataset)
+gen id = _n
+reshape long agreement_value, i(id) j(column)
+summarize agreement_value, detail // raw result
+sort agreement_value
+list agreement_value 
+summarize agreement_value if agreement_value > 0, detail // sensitivity excluding 4 structurally conflicting case definitions.
+restore
+
+//PABAK sensitivity analyses: 
+preserve
+svmat pabak_results, name(pabak_value) //makes separate column for each
+drop if missing(pabak_value1) //has the most ; this is to make this go fast (or it will try to reshape the whole dataset)
+gen id = _n
+reshape long pabak_value, i(id) j(column)
+summarize pabak_value, detail // main sensitivity result
+restore
+
+/* Sensitivity Analyses */ 
+
+/* --------------------------
+Analysis By testing Strategy: 
+ABG only vs VBG only vs ABG and VBG 
+abg_vbg_labels 0 "Has neither" 1 "Only ABG obtained (first day)" 2 "Only VBG obtained (first day)" 3 "Both ABG and VBG obtained (first day)"
+-------------------------- */ 
+//ABG only
+
+/* 
+Has ABG (whether or not also had VBG)
+Had VBG (whether or not also had ABG)
+Had either ABG or VBG
+*/ 
+
+//Had an ABG
+preserve
+keep if has_abg == 1
+count 
+matrix abg_kappa_results = J(10, 10, .)
+forval i = 1/10 {
+    forval j = 1/10 {
+        if `i' <= `j' {
+            if `i' == `j' { 
+				matrix abg_kappa_results[`i', `j'] = . // Perfect agreement with itself
+			} //Otherwise skip, so we're just doing the lower  corners
+        }
+        else {
+            // Calculate kappa for def`i' and def`j'
+			kap def`i' def`j'
+            // Retrieve the kappa statistic and store it in the matrix
+            matrix abg_kappa_results[`i', `j'] = r(kappa)
+        }
+    }
+}
+
+// Now, you can display the matrix or use it as needed.
+//To fix the hanging labels, might need to drop down to 8 x 8 table ... would take a bit more work
+
+matrix list abg_kappa_results
+matrix rownames abg_kappa_results = "Adler" "Thille" "Ouanes-Besbes" "Calvo" "Bülbül" "Meservey" "Vonderbank" "Wilson" "Cavalot" "Chung"
+matrix colnames abg_kappa_results = "Adler" "Thille" "Ouanes-Besbes" "Calvo" "Bülbül" "Meservey" "Vonderbank" "Wilson" "Cavalot" "Chung"
+
+heatplot abg_kappa_results, ///
+ aspectratio(0.65) ///
+ cuts(0(0.05)1) ///
+ xlabel(,angle(45) labsize(medsmall)) ///
+ ylabel(,angle(45) labsize(medsmall)) ///
+ legend(off) ///
+ p(lcolor(black%10) lwidth(*0.15)) ///
+ values(format(%4.2f) size(small) color(white)) ///
+ title("Agreement Beyond Chance of Case Definitions, ABG-only", size(medsmall)) ///
+ color(RdYlGn, intensify(1.25)) ///
+ xsize(5) ysize(5)
+graph export "Results and Figures/$S_DATE/ABG-only Definition Overlap HeatPlot - Kappa.png", as(png) name("Graph") replace
+
+kappaetc def1 def2 def3 def4 def5 def6 def7 def8 def9 def10 // Cohen would have been an alterantive way to Median Kappa
+
+//Calculate Median and IQR range
+svmat abg_kappa_results, name(abg_kappa_value) //makes separate column for each
+drop if missing(abg_kappa_value1) //has the most ; this is to make this go fast (or it will try to reshape the whole dataset)
+gen id = _n
+reshape long abg_kappa_value, i(id) j(column)
+summarize abg_kappa_value, detail // main result
+sort abg_kappa_value
+list abg_kappa_value 
+restore
+
+//had a vbg
+preserve
+keep if has_vbg == 1
+count 
+matrix vbg_kappa_results = J(10, 10, .)
+forval i = 1/10 {
+    forval j = 1/10 {
+        if `i' <= `j' {
+            if `i' == `j' { 
+				matrix vbg_kappa_results[`i', `j'] = . // Perfect agreement with itself
+			} //Otherwise skip, so we're just doing the lower  corners
+        }
+        else {
+            // Calculate kappa for def`i' and def`j'
+			kap def`i' def`j'
+            // Retrieve the kappa statistic and store it in the matrix
+            matrix vbg_kappa_results[`i', `j'] = r(kappa)
+        }
+    }
+}
+
+matrix list vbg_kappa_results
+matrix rownames vbg_kappa_results = "Adler" "Thille" "Ouanes-Besbes" "Calvo" "Bülbül" "Meservey" "Vonderbank" "Wilson" "Cavalot" "Chung"
+matrix colnames vbg_kappa_results = "Adler" "Thille" "Ouanes-Besbes" "Calvo" "Bülbül" "Meservey" "Vonderbank" "Wilson" "Cavalot" "Chung"
+
+heatplot vbg_kappa_results, ///
+ aspectratio(0.65) ///
+ cuts(0(0.05)1) ///
+ xlabel(,angle(45) labsize(medsmall)) ///
+ ylabel(,angle(45) labsize(medsmall)) ///
+ legend(off) ///
+ p(lcolor(black%10) lwidth(*0.15)) ///
+ values(format(%4.2f) size(small) color(white)) ///
+ title("Agreement Beyond Chance of Case Definitions, VBG-only", size(medsmall)) ///
+ color(RdYlGn, intensify(1.25)) ///
+ xsize(5) ysize(5)
+graph export "Results and Figures/$S_DATE/VBG-only Definition Overlap HeatPlot - Kappa.png", as(png) name("Graph") replace
+
+//Calculate Median and IQR range
+svmat vbg_kappa_results, name(vbg_kappa_value) //makes separate column for each
+drop if missing(vbg_kappa_value1) //has the most ; this is to make this go fast (or it will try to reshape the whole dataset)
+gen id = _n
+reshape long vbg_kappa_value, i(id) j(column)
+summarize vbg_kappa_value, detail // main result
+sort vbg_kappa_value
+list vbg_kappa_value 
+restore
+
+//either ABG or VBG
+preserve
+keep if abg_vbg_confusion_matrix !=0
+count
+matrix abg_vbg_kappa_results = J(10, 10, .)
+forval i = 1/10 {
+    forval j = 1/10 {
+        if `i' <= `j' {
+            if `i' == `j' { 
+				matrix abg_vbg_kappa_results[`i', `j'] = . // Perfect agreement with itself
+			} //Otherwise skip, so we're just doing the lower  corners
+        }
+        else {
+            // Calculate kappa for def`i' and def`j'
+			kap def`i' def`j'
+            // Retrieve the kappa statistic and store it in the matrix
+            matrix abg_vbg_kappa_results[`i', `j'] = r(kappa)
+        }
+    }
+}
+
+matrix list abg_vbg_kappa_results
+matrix rownames abg_vbg_kappa_results = "Adler" "Thille" "Ouanes-Besbes" "Calvo" "Bülbül" "Meservey" "Vonderbank" "Wilson" "Cavalot" "Chung"
+matrix colnames abg_vbg_kappa_results = "Adler" "Thille" "Ouanes-Besbes" "Calvo" "Bülbül" "Meservey" "Vonderbank" "Wilson" "Cavalot" "Chung"
+
+heatplot abg_vbg_kappa_results, ///
+ aspectratio(0.65) ///
+ cuts(0(0.05)1) ///
+ xlabel(,angle(45) labsize(medsmall)) ///
+ ylabel(,angle(45) labsize(medsmall)) ///
+ legend(off) ///
+ p(lcolor(black%10) lwidth(*0.15)) ///
+ values(format(%4.2f) size(small) color(white)) ///
+ title("Agreement Beyond Chance of Case Definitions, ABG-VBG", size(medsmall)) ///
+ color(RdYlGn, intensify(1.25)) ///
+ xsize(5) ysize(5)
+graph export "Results and Figures/$S_DATE/ABG-VBG Definition Overlap HeatPlot - Kappa.png", as(png) name("Graph") replace
+
+kappaetc def1 def2 def3 def4 def5 def6 def7 def8 def9 def10 // Cohen would have been an alterantive way to Median Kappa
+
+//Calculate Median and IQR range
+svmat abg_vbg_kappa_results, name(abg_vbg_kappa_value) //makes separate column for each
+drop if missing(abg_vbg_kappa_value1) //has the most ; this is to make this go fast (or it will try to reshape the whole dataset)
+gen id = _n
+reshape long abg_vbg_kappa_value, i(id) j(column)
+summarize abg_vbg_kappa_value, detail // main result
+sort abg_vbg_kappa_value
+list abg_vbg_kappa_value 
+restore
+
+
+/* Evaluation of the composition of each group */ 
+
+recode months_death_or_cens (min/-1=.) (17/max=.)  //remove impossible values
+summ months_death_or_cens, detail
+
+gen died_1mo = 0
+replace died_1mo = 1 if died == 1 & months_death_or_cens < 1 //died in month 0 
+label variable died_1mo "Died (1 month)"
+
+gen died_2mo = 0
+replace died_2mo = 1 if died == 1 & months_death_or_cens <= 1 //died in month 0 
+label variable died_2mo "Died (2 months)"
+
+gen death_time = . 
+replace death_time = months_death_or_cens if died == 1
+label variable death_time "Month of Death"
+
+stset months_death_or_cens, origin(min) failure(died == 1)
 
 //Generate tables with the characteristics selected in the emulated data-set
 *** Must be manually combined? 
-//"Adler" "Thille" "Ouanes-Besbes, Bülbül" "Calvo" "Meservey" "Vonderbank" "Wilson" "Cavalot" "Chung"
-forval i = 1/9 {
+//"Adler" "Thille" "Ouanes-Besbes" "Calvo" "Bülbül" "Meservey" "Vonderbank" "Wilson" "Cavalot" "Chung"
+forval i = 1/10 {
 	table1_mc, by(def`i') ///
 		vars( ///
 		age_at_encounter contn %4.0f \ ///
@@ -388,23 +626,28 @@ forval i = 1/9 {
 		serum_hco3 contn %4.1f \ ///
 		cc_time bin %4.0f \ ///
 		vent_proc bin %4.0f \ ///
+		died_1mo bin %4.0f \ ///
+		died_2mo bin %4.0f \ ///
+		death_time conts %4.0f \ ///
+		months_death_or_cens conts %4.0f \ ///
 		died bin %4.0f \ ///
 		) ///
 		percent_n percsign("%") iqrmiddle(",") sdleft(" (±") sdright(")") missing onecol saving("Results and Figures/$S_DATE/Def`i'-Summary.xlsx", replace)
+	
+	stcox i.def`i'
+	sts test def`i', logrank 
+	sts graph, by(def`i') ///
+		risktable(0(2.5)15) ///
+		xlabel(0(2.5)15) ///
+		xtitle("Follow-up (months)") ///
+		ytitle("Probability of Survival") ///
+		legend(ring(0) position(6) rows(2)) ///
+		xsize(10) ysize(5)
 }
 
-bysort died: summ months_death_or_cens, detail
+bysort died: summ months_death_or_cens, detail // median follow-up is potentially misleadsing 
 
-//TODO: figure out how I want to present this info
-
-//Neither, ABG only, VBG only, both -> likelihood of meeting each case definition?
-
-
-pvenn2 has_abg has_vbg vent_proc
-pvenn2 has_abg has_vbg hypercap_resp_failure
-pvenn2 hypercap_on_abg hypercap_on_vbg vent_proc
-pvenn2 hypercap_on_abg hypercap_on_vbg hypercap_resp_failure
-pvenn2 has_abg hypercap_on_abg has_vbg
+/* Diagnostic Strategy Influence on Inclusion */ 
 
 table1_mc, by(abg_vbg_confusion_matrix) ///
 		vars( ///
@@ -421,9 +664,9 @@ table1_mc, by(abg_vbg_confusion_matrix) ///
 		def7 bin %4.0f \ ///
 		def8 bin %4.0f \ ///
 		def9 bin %4.0f \ ///
+		def10 bin %4.0f \ ///
 		) ///
 		total(before) percent_n percsign("%") iqrmiddle(",") sdleft(" (±") sdright(")") missing onecol saving("Results and Figures/$S_DATE/Case Definition by Workup.xlsx", replace)
-		
 		
 /* Regional Variation */ 
 
@@ -438,6 +681,7 @@ table1_mc, by(location) ///
 		def7 bin %4.1f \ ///
 		def8 bin %4.1f \ ///
 		def9 bin %4.1f \ ///
+		def10 bin %4.1f \ ///
 		) ///
 		total(before) percent_n percsign("%") iqrmiddle(",") sdleft(" (±") sdright(")") missing onecol saving("Results and Figures/$S_DATE/Location by Case Definitions.xlsx", replace)
 
@@ -447,9 +691,9 @@ forval z = 0/3 {
 	preserve
 	keep if location == `z'
 	
-	matrix loc_kappa_results = J(9, 9, .)
-	forval i = 1/9 {
-		forval j = 1/9 {
+	matrix loc_kappa_results = J(10, 10, .)
+	forval i = 1/10 {
+		forval j = 1/10 {
 			if `i' <= `j' {
 				if `i' == `j' { 
 					matrix loc_kappa_results[`i', `j'] = . // Perfect agreement with itself
@@ -468,8 +712,8 @@ forval z = 0/3 {
 	// Now, you can display the matrix or use it as needed.
 	//To fix the hanging labels, might need to drop down to 8 x 8 table ... would take a bit more work
 	matrix list loc_kappa_results
-	matrix rownames loc_kappa_results = "Adler" "Thille" "Ouanes-Besbes, Bülbül" "Calvo" "Meservey*" "Vonderbank" "Wilson" "Cavalot" "Chung**"
-	matrix colnames loc_kappa_results = "Adler" "Thille" "Ouanes-Besbes, Bülbül" "Calvo" "Meservey*" "Vonderbank" "Wilson" "Cavalot" "Chung**"
+	matrix rownames loc_kappa_results = "Adler" "Thille" "Ouanes-Besbes" "Calvo" "Bülbül" "Meservey*" "Vonderbank" "Wilson" "Cavalot" "Chung**"
+	matrix colnames loc_kappa_results = "Adler" "Thille" "Ouanes-Besbes" "Calvo" "Bülbül" "Meservey*" "Vonderbank" "Wilson" "Cavalot" "Chung**"
 
 	heatplot loc_kappa_results, ///
 	 aspectratio(0.65) ///
@@ -496,11 +740,6 @@ forval z = 0/3 {
 	list loc_kappa_value 
 	restore
 }
-
-		
-		
-		
-		
 		
 
 /* ---------------
@@ -530,8 +769,8 @@ test_char_from_icd_list, ref_std("paco2_flag") icdcodes("resp_acid_dx" "sleep_hy
 restore 
 
 /* ------------
-//Degree of elevation modeled with a spline. 
 
+//Degree of elevation modeled with a spline. 
 //Unadjusted for other characteristics
 
 ------------ */ 
@@ -563,7 +802,6 @@ twoway (line pr_lb pr_ub pa, sort lc(black black) lp(longdash longdash)) (line p
 graph export "Results and Figures/$S_DATE/Unadjusted Prob of Dx Hypercapnia Splines .png", as(png) name("Graph") replace
 graph save "All_Encounters_Prob_Dx_spline.gph", replace
 restore		
-
 
 // Emergency Room Encounter
 preserve 
@@ -623,6 +861,7 @@ graph export "Results and Figures/$S_DATE/Unadjusted Prob of Dx Hypercapnia Spli
 graph save "Inp_Encounters_Prob_Dx_spline.gph", replace
 restore		
 
+/* Figure */ 
 graph combine All_Encounters_Prob_Dx_spline.gph Emer_Encounters_Prob_Dx_spline.gph Inp_Encounters_Prob_Dx_spline.gph, ///
 	cols(1) /// 
 	xcommon ///
@@ -630,7 +869,9 @@ graph combine All_Encounters_Prob_Dx_spline.gph Emer_Encounters_Prob_Dx_spline.g
 graph export "Results and Figures/$S_DATE/Figure 2 Prob Hypercap ICD.png", name("Graph") width(3600) replace
 //graph export "Results and Figures/$S_DATE/IPW Figure 2.svg", name("Graph") replace //huge
 
-
+/* 
+REGIONAL VARIATION in the application of ICD codes at various levels of PaCO2 elevation
+*/ 
 
 
 // Location 0 == South
@@ -661,12 +902,6 @@ twoway (line pr_lb pr_ub pa, sort lc(black black) lp(longdash longdash)) (line p
 graph export "Results and Figures/$S_DATE/South - Unadjusted Prob of Dx Hypercapnia Splines .png", as(png) name("Graph") replace
 graph save "Loc0_Encounters_Prob_Dx_spline.gph", replace
 restore		
-
-
-/* 
-REGIONAL VARIATION in the application of ICD codes at various levels of PaCO2 elevation
-*/ 
-
 
 // Location 1 = Northeast
 preserve 
@@ -764,4 +999,6 @@ graph combine Loc2_Encounters_Prob_Dx_spline.gph Loc1_Encounters_Prob_Dx_spline.
 	ycommon ///
 	xsize(8) ysize(8)
 graph export "Results and Figures/$S_DATE/Location - Figure S3 Prob Hypercap ICD.png", name("Graph") width(3200) replace
+
+
 
