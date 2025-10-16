@@ -15,7 +15,7 @@ This repository contains Stata code to reproduce the analyses comparing commonly
 
 ---
 
-## Summary (what this code reproduces)
+## Summary
 
 - **Question.** Do different Hypercapnic Respiratory Failure case definitions used in EHR studies identify the same patients?  
 - **Data.** 2022 adult ED and inpatient encounters from the **TriNetX Research Network**, which aggregates de‑identified EHR data from **76 U.S. healthcare organizations** (≈ **115M** patients at time of pull). Data extracted **2023‑06‑04**.  
@@ -58,7 +58,7 @@ Analyses assume one row **per encounter** with encounter‑day laboratory and ad
 - **BMI** — LOINC: **39156‑5**  
 
 **Diagnoses (ICD‑10‑CM)**
-- HRF‑specific: **J96.02, J96.12, J96.22, J96.92**  
+- Hypercapnic RF‑specific: **J96.02, J96.12, J96.22, J96.92**  
 - Obesity hypoventilation: **E66.2**  
 
 **Procedures (respiratory support)**
