@@ -38,7 +38,7 @@ This repository contains Stata code to reproduce the analyses comparing commonly
 
 ---
 
-## Data requirements (replication‑ready)
+## Data requirements
 
 Analyses assume one row **per encounter** with encounter‑day laboratory and administrative signals resolvable to **calendar day** of ED/hospital admission. TriNetX only resolves labs to calendar day; our first‑day windows use that convention. TriNetX data must be independently acquired as per their licensing agreements. 
 
