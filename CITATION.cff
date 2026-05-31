@@ -1,0 +1,47 @@
+cff-version: 1.2.0
+message: "If you use this repository, please cite the accompanying work and this repository."
+title: "Hypercapnic Respiratory Failure Case Definitions: repository materials"
+type: software
+repository-code: "https://github.com/reblocke/Hypercap-Case-Definitions"
+authors:
+  - family-names: Locke
+    given-names: Brian W.
+  - family-names: Richards
+    given-names: Wade W.
+  - family-names: Gouripeddi
+    given-names: Ramakrishna
+  - family-names: Anderson-Bell
+    given-names: Dustin
+  - family-names: Brown
+    given-names: Jason P.
+  - family-names: Finkelstein
+    given-names: Joseph
+  - family-names: Sundar
+    given-names: Krishna M.
+  - family-names: Peltan
+    given-names: Ithan D.
+  - family-names: Brown
+    given-names: Samuel M.
+preferred-citation:
+  type: article
+  title: "The Consistency of Hypercapnic Respiratory Failure Case Definitions in Electronic Health Record Data"
+  authors:
+    - family-names: Locke
+      given-names: Brian W.
+    - family-names: Richards
+      given-names: Wade W.
+    - family-names: Gouripeddi
+      given-names: Ramakrishna
+    - family-names: Anderson-Bell
+      given-names: Dustin
+    - family-names: Brown
+      given-names: Jason P.
+    - family-names: Finkelstein
+      given-names: Joseph
+    - family-names: Sundar
+      given-names: Krishna M.
+    - family-names: Peltan
+      given-names: Ithan D.
+    - family-names: Brown
+      given-names: Samuel M.
+  doi: "10.1016/j.chest.2025.08.002"
