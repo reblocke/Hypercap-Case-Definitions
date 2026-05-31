@@ -118,3 +118,42 @@ Locke BW. **Hypercapnic Respiratory Failure Case Definitions — Stata Analysis 
 ## License
 
 MIT — see `LICENSE`. You may reuse or adapt the code with attribution.
+
+## LLM and Repository Readiness Notes
+
+### Description
+The Consistency of Hypercapnic Respiratory Failure Case Definitions in Electronic Health Record Data
+
+### Instructions
+Start with this README, then inspect the files listed under Repository Layout. For computational workflows, run commands from the repository root and avoid committing generated outputs unless a release explicitly calls for them.
+
+### Authors, Funding, and Acknowledgments
+Maintainer: Brian W. Locke (`@reblocke`, ORCID 0000-0002-3588-5238). Preserve any project-specific author, funding, and acknowledgment details already listed elsewhere in the repository or accompanying publication.
+
+### Repository Layout
+- `.Rhistory`
+- `Case Definitions Consort.ipynb`
+- `Hypercapnia Case Definitions.do`
+- `LICENSE`
+- `README.md`
+
+### Data and Codebook
+TriNetX/EHR-derived data likely restricted; verify no PHI
+
+### Workflow / Script Order
+Review Stata script workflow
+
+### Dependencies / Environment
+Stata and repo README
+
+### Citation
+Preferred scholarly citation: https://doi.org/10.1016/j.chest.2025.08.002. Cite this repository with the GitHub URL and the commit or release used.
+
+### License
+Repository license status: MIT. See the root license file when present. Third-party and publisher materials remain under their original terms.
+
+### Manuscript Status
+CHEST preproof PDF exists locally; do not copy publisher text; seek accepted manuscript Publisher article not copied; code license present
+
+### Contact
+Maintainer: Brian W. Locke (`@reblocke`). Use GitHub issues or pull requests for repository-specific questions when the repository is public.
