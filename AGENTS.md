@@ -1,29 +1,46 @@
 # AGENTS
 
 ## Project Purpose
-The Consistency of Hypercapnic Respiratory Failure Case Definitions in Electronic Health Record Data
+
+This public repository contains Stata analysis code and a Python/Graphviz diagram notebook for the CHEST article "The Consistency of Hypercapnic Respiratory Failure Case Definitions in Electronic Health Record Data."
 
 ## Public and Data-Safety Rules
-- Treat this repository as public. Do not add PHI, restricted datasets, credentials, private drafts, or publisher-formatted article text.
-- TriNetX/EHR-derived data likely restricted; verify no PHI
-- Manuscript status: CHEST preproof PDF exists locally; do not copy publisher text; seek accepted manuscript
+
+- Do not add PHI, restricted TriNetX datasets, row-level derived data, credentials, local paths, private drafts, or publisher-formatted article files.
+- Treat `data/private/full_db.dta`, any `Data/` directory, and generated `.dta` files as local-only restricted artifacts.
+- Link DOI, PubMed, and PMC/NLM records instead of copying article text into repository docs.
+- Keep generated outputs under ignored `outputs/` paths unless an explicit release workflow says otherwise.
 
 ## How to Orient Quickly
-- Start with `README.md` for project scope, workflow, data notes, citation, and license information.
-- Use `CITATION.cff` for structured citation metadata when present.
-- Inspect scripts/notebooks before running them; do not assume generated outputs are current.
+
+- Start with `README.md` for the human-facing overview and run commands.
+- Use `llms.txt` for the concise machine-readable project index.
+- Use `data_dictionary.md` and `data_dictionary.csv` before changing variable names, labels, or case-definition logic.
+- Use `CITATION.cff` for structured citation metadata.
 
 ## Workflow
-From the repository root, use this as the initial run guidance:
+
+Canonical Stata command from the repository root:
 
 ```bash
-Review Stata script workflow
+stata-mp -b do "Hypercapnia Case Definitions.do" "data/private" "outputs/stata"
 ```
 
-If the command is a placeholder, refine it after reading the local scripts and existing README.
+The first argument is the input root containing `full_db.dta`; the second argument is the output root. The script should fail clearly if the restricted input is absent.
+
+Optional CONSORT notebook workflow:
+
+```bash
+python -m pip install -r requirements.txt
+jupyter nbconvert --execute "Case Definitions Consort.ipynb"
+```
+
+The notebook requires the Python `graphviz` package and the system Graphviz `dot` binary.
 
 ## Verification Before Publishing Changes
+
 - Run `git diff --check`.
-- Validate `CITATION.cff` as YAML after citation edits.
-- Do not commit generated outputs, logs, caches, virtual environments, `.DS_Store`, or checkpoint files unless intentionally released.
-- For clinical or collaborator data, confirm that no row-level restricted data or identifiers are included.
+- Validate `CITATION.cff` as YAML and, when available, with `cffconvert`.
+- Confirm no hard-coded user-home paths, Windows local paths, legacy generated-output roots, root `.gph`, root `.log`, or restricted-data paths are introduced.
+- Confirm README, `llms.txt`, `CITATION.cff`, and the data dictionary agree on DOI `10.1016/j.chest.2025.08.002`, PMID `40885535`, PMCID `PMC12739763`, and the restricted TriNetX data boundary.
+- If Stata is unavailable or the restricted data are absent, document the skipped smoke check rather than creating synthetic patient-like data.

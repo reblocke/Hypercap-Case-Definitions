@@ -1,0 +1,44 @@
+# Hypercap-Case-Definitions
+
+Repository: https://github.com/reblocke/Hypercap-Case-Definitions
+
+Purpose: Public repository for Stata analysis code and a Python/Graphviz CONSORT-style diagram supporting the CHEST article "The Consistency of Hypercapnic Respiratory Failure Case Definitions in Electronic Health Record Data."
+
+Primary article:
+- DOI: https://doi.org/10.1016/j.chest.2025.08.002
+- PubMed: https://pubmed.ncbi.nlm.nih.gov/40885535/
+- PubMed Central / NLM full text: https://pmc.ncbi.nlm.nih.gov/articles/PMC12739763/
+- Citation: CHEST. 2026;169(1):230-243.
+
+Data boundary:
+- Required patient-level input is TriNetX-derived and restricted.
+- Expected local input path is data/private/full_db.dta.
+- Do not commit raw data, derived row-level data, local workbooks, generated .dta files, logs, or outputs.
+- Use the PMC/NLM article link for accessible article text; do not copy publisher-hosted article text into repository docs.
+
+Workflow:
+- Main Stata command: stata-mp -b do "Hypercapnia Case Definitions.do" "data/private" "outputs/stata"
+- The first Stata argument is the directory containing full_db.dta.
+- The second Stata argument is the generated-output root.
+- Optional notebook command: jupyter nbconvert --execute "Case Definitions Consort.ipynb"
+- The notebook requires the Python graphviz package and the system Graphviz dot executable.
+
+Key files:
+- README.md: human-facing project overview, article links, run commands, license, and data restrictions.
+- Hypercapnia Case Definitions.do: Stata workflow for case-definition emulation, agreement analyses, tables, and figures.
+- Case Definitions Consort.ipynb: Graphviz diagram notebook for the case-definition flow figure.
+- data_dictionary.md and data_dictionary.csv: input, derived-variable, case-definition, and output documentation.
+- CITATION.cff: structured repository and article citation metadata.
+- AGENTS.md: repo-specific instructions for future coding agents.
+
+Outputs:
+- Generated Stata logs, copied do-files, tables, figures, and temporary graph files are written under outputs/stata/<date>/.
+- Generated CONSORT diagram files are written under outputs/figures/.
+- Generated outputs are local artifacts and should not be committed to the default branch.
+
+Agent cautions:
+- Preserve analysis logic unless explicitly asked to change the scientific methods.
+- Keep path changes repo-root relative and argument-driven.
+- Maintain the data dictionary when adding or renaming variables.
+- Validate CITATION.cff after metadata edits.
+- Avoid generic "LLM readiness" appendix text; integrate machine-readable information into normal README sections and this llms.txt file.

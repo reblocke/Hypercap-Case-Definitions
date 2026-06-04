@@ -1,0 +1,42 @@
+# Restricted/local data
+data/
+Data/
+*.dta
+*.sas7bdat
+*.csv
+*.xlsx
+*.xls
+*.xlsm
+!data_dictionary.csv
+
+# Generated outputs
+outputs/
+Results and Figures/
+*.log
+*.smcl
+*.gph
+*.ster
+*.png
+*.tif
+*.tiff
+*.svg
+*.pdf
+consort_diagram*
+
+# Python/Jupyter local artifacts
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.venv/
+venv/
+env/
+
+# Local editor/OS files
+.DS_Store
+.Rhistory
+.RData
+.Rproj.user/
+.idea/
+.vscode/
+*.swp
+*.swo

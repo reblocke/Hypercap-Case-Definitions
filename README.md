@@ -1,159 +1,108 @@
-# Hypercapnic Respiratory Failure Case Definitions — Stata Analysis Code
+# Hypercapnic Respiratory Failure Case Definitions
 
-**Manuscript:** *The Consistency of Hypercapnic Respiratory Failure Case Definitions in Electronic Health Record Data (CHEST)*. 
-Online ahead of print August 28, 2025. doi:10.1016/j.chest.2025.08.002.
+[![DOI](https://img.shields.io/badge/DOI-10.1016%2Fj.chest.2025.08.002-blue)](https://doi.org/10.1016/j.chest.2025.08.002)
+[![PubMed](https://img.shields.io/badge/PubMed-40885535-green)](https://pubmed.ncbi.nlm.nih.gov/40885535/)
+[![PMC](https://img.shields.io/badge/PMC-PMC12739763-green)](https://pmc.ncbi.nlm.nih.gov/articles/PMC12739763/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-This repository contains Stata code to reproduce the analyses comparing commonly used case definitions for **hypercapnic respiratory failure** (HRF) in electronic health record (EHR) data.
+Stata analysis code and a small CONSORT-style diagram notebook for the CHEST article **"The Consistency of Hypercapnic Respiratory Failure Case Definitions in Electronic Health Record Data."**
 
----
+## Article Links
 
-## Quick links
+- Final article DOI: <https://doi.org/10.1016/j.chest.2025.08.002>
+- PubMed: <https://pubmed.ncbi.nlm.nih.gov/40885535/>
+- PubMed Central / NLM full-text record: <https://pmc.ncbi.nlm.nih.gov/articles/PMC12739763/>
+- Journal: *CHEST*. 2026;169(1):230-243.
 
-- **Manuscript (CHEST):** doi:10.1016/j.chest.2025.08.002  
-- **Contact (maintainer):** Brian W. Locke (brian.locke@imail.org)  
-- **License:** MIT (see `LICENSE`)
+## Project Summary
 
----
+This repository supports a study asking whether common electronic-health-record case definitions for hypercapnic respiratory failure identify the same patients. The analysis emulates 10 published definitions in 2022 adult emergency-department and inpatient encounters from the TriNetX Research Network, then compares agreement, cohort characteristics, mortality, and diagnosis-code performance against laboratory-based hypercapnia measures.
 
-## Summary
+The repository intentionally contains code and documentation only. TriNetX-derived patient-level data are restricted and cannot be redistributed.
 
-- **Question.** Do different Hypercapnic Respiratory Failure case definitions used in EHR studies identify the same patients?  
-- **Data.** 2022 adult ED and inpatient encounters from the **TriNetX Research Network**, which aggregates de‑identified EHR data from **76 U.S. healthcare organizations** (≈ **115M** patients at time of pull). Data extracted **2023‑06‑04**.  
-- **Cohort.** 515,286 eligible encounters after applying completeness checks.  
-- **Methods.** Emulated 10 published Hypercapnic Respiratory Failure case definitions on first calendar day of ED/hospital admission; compared agreement and cohort characteristics. Agreement metrics included **Cohen’s κ**, **relative sensitivity**, **positive percent agreement**; additional **PABAK**. Mortality via Cox models; diagnosis‑code accuracy vs ABG via logistic GEE with **restricted cubic splines**.  
-- **Key findings.** Limited agreement across definitions (**median κ = 0.35**). Hypercapnic Respiratory Failure **diagnosis codes are insensitive** for first‑day ABG‑confirmed hypercapnia (**sensitivity 23.5%**), though PPV among coded patients with ABG is moderate. Cohorts differ materially in ventilatory support rates and mortality.
+## Authors, Funding, and Disclosures
 
----
+Article authors: Brian W. Locke, W. Wayne Richards, Ramkiran Gouripeddi, Jeanette P. Brown, Dustin Anderson-Bell, Joseph Finkelstein, Krishna M. Sundar, Ithan D. Peltan, and Samuel M. Brown.
 
-## What’s in this repository
+Repository maintainer: Brian W. Locke, ORCID `0000-0002-3588-5238`, GitHub `@reblocke`.
 
-- `code/`  
-  - `hypercap_case_definitions.do` — main analysis script (cohort emulation, agreement metrics, figures/tables).
-  - `Case Definitions Consort.ipynb` - jupyter notebook to create the consort diagram
-- `output/` (created by the do‑files)  
-  - Derived tables (case‑definition cross‑tabs, κ matrix, baseline characteristics).  
-  - Figures (κ heatmap; PaCO₂ vs probability of HRF code; PRISMA‑style diagram).  
-- `LICENSE` — MIT.  
-- `README.md` — this file.
+Support listed in the article includes the American Thoracic Society ASPIRE Fellowship and grant, NIH Ruth L. Kirschstein National Research Service Award `5T32HL105321`, the National Center for Advancing Translational Sciences, and the National Institute of General Medical Sciences. Use the article record for the authoritative funding and disclosure statement.
 
----
+## Repository Contents
 
-## Data requirements
+| Path | Purpose |
+| --- | --- |
+| `Hypercapnia Case Definitions.do` | Main Stata workflow for cohort filtering, case-definition emulation, agreement analyses, descriptive tables, Cox models, diagnosis-code performance, and figures. |
+| `Case Definitions Consort.ipynb` | Python/Graphviz notebook for the CONSORT-style case-definition diagram. |
+| `data_dictionary.md`, `data_dictionary.csv` | Human- and machine-readable documentation for expected inputs, derived variables, case-definition flags, and outputs. |
+| `CITATION.cff` | Structured citation metadata for the repository and the preferred CHEST article citation. |
+| `llms.txt` | Concise machine-readable project index for search, retrieval, and future coding agents. |
+| `AGENTS.md` | Repository-specific working rules for future coding agents. |
 
-Analyses assume one row **per encounter** with encounter‑day laboratory and administrative signals resolvable to **calendar day** of ED/hospital admission. TriNetX only resolves labs to calendar day; our first‑day windows use that convention. TriNetX data must be independently acquired as per their licensing agreements. 
+## Data Requirements
 
-### Minimum variables
+The Stata workflow expects a restricted TriNetX encounter-level Stata dataset named:
 
-**Identifiers and timing**
-- `patient_id`, `encounter_id`
-- `admission_date` (date), `encounter_type` (ED vs inpatient)
+```text
+data/private/full_db.dta
+```
 
-**Demography/comorbidity (used for cohort description)**
-- `age`, `sex`, `race`, `ethnicity`, `BMI` (kg/m²)
+The dataset is one row per emergency-department or inpatient encounter and must contain first-calendar-day laboratory, diagnosis, procedure, demographic, comorbidity, location, and mortality variables described in the data dictionary. The analysis uses TriNetX calendar-day lab resolution; first-day windows follow that convention.
 
-**Laboratory (first calendar day of encounter)**
-- **ABG PaCO₂ (mmHg)** — LOINC: **2019‑8**, **2026‑3**, **32771‑8**  
-- **VBG pCO₂ (mmHg)** — LOINC: **115577‑6**, **2021‑4**  
-- **Arterial pH**, **serum bicarbonate (mEq/L)** as available  
-- **BMI** — LOINC: **39156‑5**  
+TriNetX data must be re-requested under an investigator's institutional TriNetX agreement. Do not commit source data, derived row-level data, local exports, or other patient-level files to this repository.
 
-**Diagnoses (ICD‑10‑CM)**
-- Hypercapnic RF‑specific: **J96.02, J96.12, J96.22, J96.92**  
-- Obesity hypoventilation: **E66.2**  
+## Workflow
 
-**Procedures (respiratory support)**
-- ICD‑10‑PCS: **5A09459, 5A0945B, 5A09559, 5A0955B** (assistance with resp. ventilation: negative/continuous)  
-- ICD‑10‑PCS: **5A09358, 5A09458, 5A09558** (intermittent CPAP: 24h, 24–96h, 96+h)  
-- ICD‑10‑PCS: **5A0935Z, 5A0945Z, 5A0955Z** (assistance with resp. ventilation: 24h, 24–96h, 96+h)  
-- ICD‑10‑PCS: **5A1935Z, 5A1945Z, 5A1955Z** (respiratory ventilation)  
-- CPT: **101509, 1014859, 94002, 94003, 94660** (ventilation management)
+Install the required community Stata packages before running the full workflow. Observed dependencies include `missings`, `table1_mc`, `heatplot`, `kappaetc`, `diagt`, `mkspline2`, `xblc`, `cleanplots`, and related graphics/table dependencies.
 
-**Administrative**
-- Billing for critical care (if available)
-- Death date or in‑network 60‑day mortality indicator (for outcomes)
+Canonical Stata run from the repository root:
 
----
+```bash
+stata-mp -b do "Hypercapnia Case Definitions.do" "data/private" "outputs/stata"
+```
 
-## Case definitions emulated (high‑level)
+The first argument is the directory containing `full_db.dta`; the second argument is the output root. If arguments are omitted, the script defaults to `data/private` and `outputs/stata`.
 
-We emulated **10** Hypercapnic Respiratory Failure case definitions from published EHR‑based studies. Types of criteria utilized: 
-- **ABG‑based hypercapnia** at presentation (e.g., PaCO₂ ≥ 45 mmHg; with/without acidosis criteria).  
-- **VBG‑based hypercapnia** at presentation.(e.g., PvCO2 ≥ 50 mmHg)
-- **Diagnosis‑code** (ICD‑10‑CM).  
-- **Procedure‑based** (ventilatory support codes), with or without laboratory corroboration.  
+Optional notebook workflow:
 
-Exact simulated criteria and study sources are documented in the manuscript Tables/Figures and mirrored in code comments.
+```bash
+python -m pip install -r requirements.txt
+jupyter nbconvert --execute "Case Definitions Consort.ipynb"
+```
 
----
+The notebook requires both the Python `graphviz` package and the system Graphviz `dot` executable.
 
-## Data availability and governance
+## Outputs
 
-- Data come from **TriNetX Research Network** and cannot be redistributed here. Investigators can **re‑request** equivalent datasets directly from TriNetX under their institutional agreements and reproduce the analysis using this code.  
-- Because only **de‑identified** records were used, the study was determined **exempt** by the University of Utah IRB
+Generated outputs are written under ignored `outputs/` folders and should not be committed as source files. The Stata workflow produces dated run folders containing logs, copied do-files, tables, heatmaps, spline figures, and temporary Stata graph files. The notebook writes the CONSORT diagram under `outputs/figures/`.
 
----
+Key paper-facing artifacts include:
 
-## Support
-
-This research was supported by: 
-- the American Thoracic Society Academic Sleep Pulmonary Integrated Research/Clinical Fellowship (ASPIRE) Fellowship and grant 
-- the National Institutes of Health under Ruth L. Kirschstein National Research Service Award 5T32HL105321 
-- the National Center for Advancing Translational Sciences 
-- the National Institute of General Medical Sciences 
-
----
+- cohort characteristics table;
+- case-definition relative-sensitivity, raw-agreement, kappa, and PABAK heatmaps;
+- case-definition-by-workup and location summary tables;
+- case-definition-specific descriptive summaries and survival analyses;
+- diagnosis-code performance summaries against ABG and any-blood-gas reference standards;
+- probability of hypercapnic respiratory failure code by day-1 PaCO2 overall, by encounter type, and by region.
 
 ## Citation
 
-If you use this code or reproduce the analysis, cite the paper and this repository:
+If using this repository, cite both the article and the specific repository commit or release.
 
-**Paper**  
-Locke BW, Richards WW, Gouripeddi R, Brown JP, Anderson-Bell D, Finkelstein J, Sundar KM, Peltan ID, Brown SM. *The Consistency of Hypercapnic Respiratory Failure Case Definitions in Electronic Health Record Data.* **Chest**. 2025. doi:10.1016/j.chest.2025.08.002.
+**Article**
 
-**Software (this repository)**  
-Locke BW. **Hypercapnic Respiratory Failure Case Definitions — Stata Analysis Code.** MIT License. URL: GitHub repository (this page).
+Locke BW, Richards WW, Gouripeddi R, Brown JP, Anderson-Bell D, Finkelstein J, Sundar KM, Peltan ID, Brown SM. The Consistency of Hypercapnic Respiratory Failure Case Definitions in Electronic Health Record Data. *CHEST*. 2026;169(1):230-243. doi:10.1016/j.chest.2025.08.002.
 
----
+**Repository**
+
+Locke BW, Richards WW, Gouripeddi R, Brown JP, Anderson-Bell D, Finkelstein J, Sundar KM, Peltan ID, Brown SM. Hypercapnic Respiratory Failure Case Definitions: repository materials. GitHub: <https://github.com/reblocke/Hypercap-Case-Definitions>.
+
+Structured metadata are available in `CITATION.cff`.
 
 ## License
 
-MIT — see `LICENSE`. You may reuse or adapt the code with attribution.
+Code and repository-authored documentation are released under the MIT License. TriNetX data, patient-level derivatives, third-party software, and publisher-hosted article content are not covered by this repository license.
 
-## LLM and Repository Readiness Notes
+## Contact
 
-### Description
-The Consistency of Hypercapnic Respiratory Failure Case Definitions in Electronic Health Record Data
-
-### Instructions
-Start with this README, then inspect the files listed under Repository Layout. For computational workflows, run commands from the repository root and avoid committing generated outputs unless a release explicitly calls for them.
-
-### Authors, Funding, and Acknowledgments
-Maintainer: Brian W. Locke (`@reblocke`, ORCID 0000-0002-3588-5238). Preserve any project-specific author, funding, and acknowledgment details already listed elsewhere in the repository or accompanying publication.
-
-### Repository Layout
-- `.Rhistory`
-- `Case Definitions Consort.ipynb`
-- `Hypercapnia Case Definitions.do`
-- `LICENSE`
-- `README.md`
-
-### Data and Codebook
-TriNetX/EHR-derived data likely restricted; verify no PHI
-
-### Workflow / Script Order
-Review Stata script workflow
-
-### Dependencies / Environment
-Stata and repo README
-
-### Citation
-Preferred scholarly citation: https://doi.org/10.1016/j.chest.2025.08.002. Cite this repository with the GitHub URL and the commit or release used.
-
-### License
-Repository license status: MIT. See the root license file when present. Third-party and publisher materials remain under their original terms.
-
-### Manuscript Status
-CHEST preproof PDF exists locally; do not copy publisher text; seek accepted manuscript Publisher article not copied; code license present
-
-### Contact
-Maintainer: Brian W. Locke (`@reblocke`). Use GitHub issues or pull requests for repository-specific questions when the repository is public.
+Open a GitHub issue or pull request for repository-specific questions. For other correspondence, contact Brian W. Locke at `brian.locke@imail.org`.
