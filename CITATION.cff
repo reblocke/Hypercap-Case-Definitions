@@ -1,19 +1,29 @@
 cff-version: 1.2.0
-message: "If you use this repository, please cite the accompanying work and this repository."
+message: "If you use this repository, please cite both the CHEST article and the repository commit or release used."
 title: "Hypercapnic Respiratory Failure Case Definitions: repository materials"
 type: software
 repository-code: "https://github.com/reblocke/Hypercap-Case-Definitions"
+url: "https://github.com/reblocke/Hypercap-Case-Definitions"
+license: MIT
+abstract: "Repository materials for Stata analyses comparing electronic-health-record case definitions for hypercapnic respiratory failure."
+keywords:
+  - hypercapnic respiratory failure
+  - case definitions
+  - electronic health records
+  - TriNetX
+  - Stata
 authors:
   - family-names: Locke
     given-names: Brian W.
+    orcid: "https://orcid.org/0000-0002-3588-5238"
   - family-names: Richards
-    given-names: Wade W.
+    given-names: W. Wayne
   - family-names: Gouripeddi
-    given-names: Ramakrishna
+    given-names: Ramkiran
+  - family-names: Brown
+    given-names: Jeanette P.
   - family-names: Anderson-Bell
     given-names: Dustin
-  - family-names: Brown
-    given-names: Jason P.
   - family-names: Finkelstein
     given-names: Joseph
   - family-names: Sundar
@@ -28,14 +38,15 @@ preferred-citation:
   authors:
     - family-names: Locke
       given-names: Brian W.
+      orcid: "https://orcid.org/0000-0002-3588-5238"
     - family-names: Richards
-      given-names: Wade W.
+      given-names: W. Wayne
     - family-names: Gouripeddi
-      given-names: Ramakrishna
+      given-names: Ramkiran
+    - family-names: Brown
+      given-names: Jeanette P.
     - family-names: Anderson-Bell
       given-names: Dustin
-    - family-names: Brown
-      given-names: Jason P.
     - family-names: Finkelstein
       given-names: Joseph
     - family-names: Sundar
@@ -45,3 +56,10 @@ preferred-citation:
     - family-names: Brown
       given-names: Samuel M.
   doi: "10.1016/j.chest.2025.08.002"
+  journal: "CHEST"
+  year: 2026
+  volume: "169"
+  issue: "1"
+  start: "230"
+  end: "243"
+  url: "https://doi.org/10.1016/j.chest.2025.08.002"

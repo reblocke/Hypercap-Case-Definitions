@@ -1,4 +1,5 @@
 * Hypercapnia TriNetX Computable Phenotype Analysis
+version 17.0
 
 /* ---------
 OVERALL TODO LIST
@@ -10,29 +11,47 @@ capture log close
 * Load data
 clear
 
-/* Specify working direction */ 
-//cd "C:\Users\reblo\Box\Residency Personal Files\Scholarly Work\Locke Research Projects\TriNetX Code" 
-cd "/Users/blocke/Box Sync/Residency Personal Files/Scholarly Work/Locke Research Projects/TriNetX Code"
-//cd "/Users/reblocke/Research/trinetx-hypercapnia-code"
+/* Runtime configuration.
+   Default input is the ignored, local-only TriNetX file:
+       data/private/full_db.dta
+   Optional arguments:
+       do "Hypercapnia Case Definitions.do" "data/private" "outputs/stata"
+*/
+local input_root "data/private"
+local output_root "outputs/stata"
+if "`1'" != "" local input_root "`1'"
+if "`2'" != "" local output_root "`2'"
+
+local input_file "`input_root'/full_db.dta"
+capture confirm file "`input_file'"
+if _rc {
+    di as error "Required restricted input not found: `input_file'"
+    di as error "Place full_db.dta under data/private or pass input/output roots:"
+    di as error `"stata-mp -b do "Hypercapnia Case Definitions.do" "data/private" "outputs/stata""'
+    exit 601
+}
 
 /* Create logging / output directories */ 
-capture mkdir "Results and Figures"
-capture mkdir "Results and Figures/$S_DATE/" //make new folder for figure output if needed
-capture mkdir "Results and Figures/$S_DATE/Logs/" //new folder for stata logs
+capture mkdir "outputs"
+capture mkdir "`output_root'"
+local run_date = subinstr(c(current_date), " ", "-", .)
+local outdir "`output_root'/`run_date'"
+local logdir "`outdir'/Logs"
+local graphdir "`outdir'/graph-temp"
+capture mkdir "`outdir'"
+capture mkdir "`logdir'"
+capture mkdir "`graphdir'"
 local a1=substr(c(current_time),1,2)
 local a2=substr(c(current_time),4,2)
 local a3=substr(c(current_time),7,2)
-local b = "Hypercapnia Computable Phenotype.do" // do file name
-copy "`b'" "Results and Figures/$S_DATE/Logs/(`a1'_`a2'_`a3')`b'"
+local b = "Hypercapnia Case Definitions.do" // do file name
+copy "`b'" "`logdir'/(`a1'_`a2'_`a3') `b'", replace
 
 set scheme cleanplots
 graph set window fontface "Helvetica"
-log using temp.log, replace
+log using "`logdir'/(`a1'_`a2'_`a3') hypercap_case_definitions.log", text replace
 
-clear
-cd "Data"
-use full_db
-cd ..
+use "`input_file'", clear
 
 /* -----------------------
 
@@ -144,7 +163,7 @@ table1_mc,  ///
 		vent_proc bin %4.1f \ ///
 		died bin %4.1f \ ///
 		) ///
-		percent_n percsign("%") iqrmiddle(",") sdleft(" (±") sdright(")") missing onecol saving("Results and Figures/$S_DATE/Overall Cohort chars.xlsx", replace)
+		percent_n percsign("%") iqrmiddle(",") sdleft(" (±") sdright(")") missing onecol saving("`outdir'/Overall Cohort chars.xlsx", replace)
 
 //--------------
 /* Agreement Analysis */ 
@@ -225,7 +244,7 @@ gen def9 = ((paco2 >= 45 & abg_ph <= 7.35) | (vbg_co2 >= 50 & vbg_ph <= 7.34) ) 
 replace def9 = 0 if missing(def9)
 label variable def9 "Cavalot"
 label define cavalot_lab 1 "Cavalot"
-label values def8 cavalot_lab 
+label values def9 cavalot_lab
 
 //Chung et al 2021: PaCO2 over 45 - exclude Iatrogenic causes, trauma, post-arrest. 
 gen def10 = (paco2 >= 45 & abg_ph < 7.45) if !missing(paco2, abg_ph)
@@ -299,7 +318,7 @@ heatplot rel_sens, ///
  title("Relative Sensitivity of Case Definitions", size(medsmall)) ///
  color(RdYlGn, intensify(1.25)) ///
  xsize(5) ysize(5)
-graph export "Results and Figures/$S_DATE/Definition Overlap HeatPlot.png", as(png) name("Graph") replace
+graph export "`outdir'/Definition Overlap HeatPlot.png", as(png) name("Graph") replace
 
 matrix agreement_results = J(10, 10, .)
 matrix kappa_results = J(10, 10, .)
@@ -344,7 +363,7 @@ heatplot kappa_results, ///
  title("Agreement Beyond Chance of Case Definitions", size(medsmall)) ///
  color(RdYlGn, intensify(1.25)) ///
  xsize(5) ysize(5)
-graph export "Results and Figures/$S_DATE/Definition Overlap HeatPlot - Kappa.png", as(png) name("Graph") replace
+graph export "`outdir'/Definition Overlap HeatPlot - Kappa.png", as(png) name("Graph") replace
 
 /* Raw Agreement */ 
 matrix list agreement_results
@@ -362,7 +381,7 @@ heatplot agreement_results, ///
  title("Raw Agreement Between of Case Definitions", size(medsmall)) ///
  color(RdYlGn, intensify(1.25)) ///
  xsize(5) ysize(5)
-graph export "Results and Figures/$S_DATE/Definition Overlap HeatPlot - Agreement.png", as(png) name("Graph") replace
+graph export "`outdir'/Definition Overlap HeatPlot - Agreement.png", as(png) name("Graph") replace
 
 /* PABAK */ 
 matrix list pabak_results
@@ -380,7 +399,7 @@ heatplot pabak_results, ///
  title("Prevalence and Bias-Adjusted Kappa between Case Definitions", size(small)) ///
  color(RdYlGn, intensify(1.25)) ///
  xsize(5) ysize(5)
-graph export "Results and Figures/$S_DATE/Definition Overlap HeatPlot - PABAK.png", as(png) name("Graph") replace
+graph export "`outdir'/Definition Overlap HeatPlot - PABAK.png", as(png) name("Graph") replace
 
 /* 
 Alternative method of multi-rater agreement evaluation 
@@ -474,7 +493,7 @@ heatplot abg_kappa_results, ///
  title("Agreement Beyond Chance of Case Definitions, ABG-only", size(medsmall)) ///
  color(RdYlGn, intensify(1.25)) ///
  xsize(5) ysize(5)
-graph export "Results and Figures/$S_DATE/ABG-only Definition Overlap HeatPlot - Kappa.png", as(png) name("Graph") replace
+graph export "`outdir'/ABG-only Definition Overlap HeatPlot - Kappa.png", as(png) name("Graph") replace
 
 kappaetc def1 def2 def3 def4 def5 def6 def7 def8 def9 def10 // Cohen would have been an alterantive way to Median Kappa
 
@@ -524,7 +543,7 @@ heatplot vbg_kappa_results, ///
  title("Agreement Beyond Chance of Case Definitions, VBG-only", size(medsmall)) ///
  color(RdYlGn, intensify(1.25)) ///
  xsize(5) ysize(5)
-graph export "Results and Figures/$S_DATE/VBG-only Definition Overlap HeatPlot - Kappa.png", as(png) name("Graph") replace
+graph export "`outdir'/VBG-only Definition Overlap HeatPlot - Kappa.png", as(png) name("Graph") replace
 
 //Calculate Median and IQR range
 svmat vbg_kappa_results, name(vbg_kappa_value) //makes separate column for each
@@ -572,7 +591,7 @@ heatplot abg_vbg_kappa_results, ///
  title("Agreement Beyond Chance of Case Definitions, ABG-VBG", size(medsmall)) ///
  color(RdYlGn, intensify(1.25)) ///
  xsize(5) ysize(5)
-graph export "Results and Figures/$S_DATE/ABG-VBG Definition Overlap HeatPlot - Kappa.png", as(png) name("Graph") replace
+graph export "`outdir'/ABG-VBG Definition Overlap HeatPlot - Kappa.png", as(png) name("Graph") replace
 
 kappaetc def1 def2 def3 def4 def5 def6 def7 def8 def9 def10 // Cohen would have been an alterantive way to Median Kappa
 
@@ -632,7 +651,7 @@ forval i = 1/10 {
 		months_death_or_cens conts %4.0f \ ///
 		died bin %4.0f \ ///
 		) ///
-		percent_n percsign("%") iqrmiddle(",") sdleft(" (±") sdright(")") missing onecol saving("Results and Figures/$S_DATE/Def`i'-Summary.xlsx", replace)
+		percent_n percsign("%") iqrmiddle(",") sdleft(" (±") sdright(")") missing onecol saving("`outdir'/Def`i'-Summary.xlsx", replace)
 	
 	stcox i.def`i'
 	sts test def`i', logrank 
@@ -666,7 +685,7 @@ table1_mc, by(abg_vbg_confusion_matrix) ///
 		def9 bin %4.0f \ ///
 		def10 bin %4.0f \ ///
 		) ///
-		total(before) percent_n percsign("%") iqrmiddle(",") sdleft(" (±") sdright(")") missing onecol saving("Results and Figures/$S_DATE/Case Definition by Workup.xlsx", replace)
+		total(before) percent_n percsign("%") iqrmiddle(",") sdleft(" (±") sdright(")") missing onecol saving("`outdir'/Case Definition by Workup.xlsx", replace)
 		
 /* Regional Variation */ 
 
@@ -683,7 +702,7 @@ table1_mc, by(location) ///
 		def9 bin %4.1f \ ///
 		def10 bin %4.1f \ ///
 		) ///
-		total(before) percent_n percsign("%") iqrmiddle(",") sdleft(" (±") sdright(")") missing onecol saving("Results and Figures/$S_DATE/Location by Case Definitions.xlsx", replace)
+		total(before) percent_n percsign("%") iqrmiddle(",") sdleft(" (±") sdright(")") missing onecol saving("`outdir'/Location by Case Definitions.xlsx", replace)
 
 label list loc_lab
 
@@ -726,7 +745,7 @@ forval z = 0/3 {
 	 title("Agreement Beyond Chance by Location", size(medsmall)) ///
 	 color(RdYlGn, intensify(1.25)) ///
 	 xsize(5) ysize(5)
-	graph export "Results and Figures/$S_DATE/Loc`z'-Definition Overlap HeatPlot - Kappa.png", as(png) name("Graph") replace
+	graph export "`outdir'/Loc`z'-Definition Overlap HeatPlot - Kappa.png", as(png) name("Graph") replace
 
 
 //Calculate Median and IQR range
@@ -799,8 +818,8 @@ gen pr_ub = ub / (1+ub)
 
 //Title: Probability of a Diagnostic Code for Hypercapnic Respiratory Failure; Unadjusted
 twoway (line pr_lb pr_ub pa, sort lc(black black) lp(longdash longdash)) (line prob_hypercap pa, sort lc(black) lp(l)) if inrange(paco2_rounded,20,100), xscale(range(20 100)) yscale(range(0 0.6)) scheme(cleanplots) legend(off) xlabel(20(10)100) xmtick(20(10)100) ylabel(0(0.2)0.6) ytitle(" " " " ) xtitle(" ") title("All Encounters") yline(0, lp("shortdash") lc(gs10)) xline(45, lp("shortdash_dot") lc(gs10)) note(" ") xsize(7) ysize(3)
-graph export "Results and Figures/$S_DATE/Unadjusted Prob of Dx Hypercapnia Splines .png", as(png) name("Graph") replace
-graph save "All_Encounters_Prob_Dx_spline.gph", replace
+graph export "`outdir'/Unadjusted Prob of Dx Hypercapnia Splines .png", as(png) name("Graph") replace
+graph save "`graphdir'/All_Encounters_Prob_Dx_spline.gph", replace
 restore		
 
 // Emergency Room Encounter
@@ -828,8 +847,8 @@ gen pr_ub = ub / (1+ub)
 
 //Title: Probability of a Diagnostic Code for Hypercapnic Respiratory Failure; Unadjusted
 twoway (line pr_lb pr_ub pa, sort lc(black black) lp(longdash longdash)) (line prob_hypercap pa, sort lc(black) lp(l)) if inrange(paco2_rounded,20,100), xscale(range(20 100)) yscale(range(0 0.6)) scheme(cleanplots) legend(off) xlabel(20(10)100) xmtick(20(10)100) ylabel(0(0.2)0.6) ytitle("Probability of a Hypercapnic" "Respiratory Failure Diagnosis Code") xtitle(" ") title("Emergency Encounters") yline(0, lp("shortdash") lc(gs10)) xline(45, lp("shortdash_dot") lc(gs10)) note(" ") xsize(7) ysize(3)
-graph export "Results and Figures/$S_DATE/Unadjusted Prob of Dx Hypercapnia Splines .png", as(png) name("Graph") replace
-graph save "Emer_Encounters_Prob_Dx_spline.gph", replace
+graph export "`outdir'/Unadjusted Prob of Dx Hypercapnia Splines .png", as(png) name("Graph") replace
+graph save "`graphdir'/Emer_Encounters_Prob_Dx_spline.gph", replace
 restore		
 
 // Inpatient Encounter
@@ -857,17 +876,17 @@ gen pr_ub = ub / (1+ub)
 
 //Title: Probability of a Diagnostic Code for Hypercapnic Respiratory Failure; Unadjusted
 twoway (line pr_lb pr_ub pa, sort lc(black black) lp(longdash longdash)) (line prob_hypercap pa, sort lc(black) lp(l)) if inrange(paco2_rounded,20,100), xscale(range(20 100)) yscale(range(0 0.6)) scheme(cleanplots) legend(off) xlabel(20(10)100) xmtick(20(10)100) ylabel(0(0.2)0.6) ytitle(" " " ") xtitle("Day 1 PaCO{subscript:2}") title("Inpatient Encounters") yline(0, lp("shortdash") lc(gs10)) xline(45, lp("shortdash_dot") lc(gs10)) note(" ") xsize(7) ysize(3)
-graph export "Results and Figures/$S_DATE/Unadjusted Prob of Dx Hypercapnia Splines .png", as(png) name("Graph") replace
-graph save "Inp_Encounters_Prob_Dx_spline.gph", replace
+graph export "`outdir'/Unadjusted Prob of Dx Hypercapnia Splines .png", as(png) name("Graph") replace
+graph save "`graphdir'/Inp_Encounters_Prob_Dx_spline.gph", replace
 restore		
 
 /* Figure */ 
-graph combine All_Encounters_Prob_Dx_spline.gph Emer_Encounters_Prob_Dx_spline.gph Inp_Encounters_Prob_Dx_spline.gph, ///
+graph combine "`graphdir'/All_Encounters_Prob_Dx_spline.gph" "`graphdir'/Emer_Encounters_Prob_Dx_spline.gph" "`graphdir'/Inp_Encounters_Prob_Dx_spline.gph", ///
 	cols(1) /// 
 	xcommon ///
 	xsize(7) ysize(9)
-graph export "Results and Figures/$S_DATE/Figure 2 Prob Hypercap ICD.png", name("Graph") width(3600) replace
-//graph export "Results and Figures/$S_DATE/IPW Figure 2.svg", name("Graph") replace //huge
+graph export "`outdir'/Figure 2 Prob Hypercap ICD.png", name("Graph") width(3600) replace
+//graph export "`outdir'/IPW Figure 2.svg", name("Graph") replace //huge
 
 /* 
 REGIONAL VARIATION in the application of ICD codes at various levels of PaCO2 elevation
@@ -899,8 +918,8 @@ gen pr_ub = ub / (1+ub)
 
 //Title: Probability of a Diagnostic Code for Hypercapnic Respiratory Failure; Unadjusted
 twoway (line pr_lb pr_ub pa, sort lc(black black) lp(longdash longdash)) (line prob_hypercap pa, sort lc(black) lp(l)) if inrange(paco2_rounded,20,80), xscale(range(20 80)) yscale(range(0 0.8)) scheme(cleanplots) legend(off) xlabel(20(10)80) xmtick(20(10)80) ylabel(0(0.2)0.8) ytitle(" " " ") xtitle("Day 1 PaCO{subscript:2}") title("Region: South") yline(0, lp("shortdash") lc(gs10)) xline(45, lp("shortdash_dot") lc(gs10)) note(" ") xsize(4) ysize(4)
-graph export "Results and Figures/$S_DATE/South - Unadjusted Prob of Dx Hypercapnia Splines .png", as(png) name("Graph") replace
-graph save "Loc0_Encounters_Prob_Dx_spline.gph", replace
+graph export "`outdir'/South - Unadjusted Prob of Dx Hypercapnia Splines .png", as(png) name("Graph") replace
+graph save "`graphdir'/Loc0_Encounters_Prob_Dx_spline.gph", replace
 restore		
 
 // Location 1 = Northeast
@@ -928,14 +947,14 @@ gen pr_ub = ub / (1+ub)
 
 //Title: Probability of a Diagnostic Code for Hypercapnic Respiratory Failure; Unadjusted
 twoway (line pr_lb pr_ub pa, sort lc(black black) lp(longdash longdash)) (line prob_hypercap pa, sort lc(black) lp(l)) if inrange(paco2_rounded,20,80), xscale(range(20 80)) yscale(range(0 0.8)) scheme(cleanplots) legend(off) xlabel(20(10)80) xmtick(20(10)80) ylabel(0(0.2)0.8) ytitle(" " " ") xtitle(" ") title("Region: Northeast") yline(0, lp("shortdash") lc(gs10)) xline(45, lp("shortdash_dot") lc(gs10)) note(" ") xsize(4) ysize(4)
-graph export "Results and Figures/$S_DATE/Northeast - Unadjusted Prob of Dx Hypercapnia Splines .png", as(png) name("Graph") replace
-graph save "Loc1_Encounters_Prob_Dx_spline.gph", replace
+graph export "`outdir'/Northeast - Unadjusted Prob of Dx Hypercapnia Splines .png", as(png) name("Graph") replace
+graph save "`graphdir'/Loc1_Encounters_Prob_Dx_spline.gph", replace
 restore		
 
 // Location 2 = Midwest
 preserve 
 keep if has_abg == 1
-keep if location == 3
+keep if location == 2
 gen paco2_rounded = round(paco2, 0.1)
 mkspline2 rc = paco2_rounded, cubic nknots(5) displayknots
 assert float(paco2_rounded) == float(rc1) // VERIFY FIRST SPLINE VARIABLE IS THE ORIGINAL VARIABLE
@@ -957,8 +976,8 @@ gen pr_ub = ub / (1+ub)
 
 //Title: Probability of a Diagnostic Code for Hypercapnic Respiratory Failure; Unadjusted
 twoway (line pr_lb pr_ub pa, sort lc(black black) lp(longdash longdash)) (line prob_hypercap pa, sort lc(black) lp(l)) if inrange(paco2_rounded,20,80), xscale(range(20 80)) yscale(range(0 0.8)) scheme(cleanplots) legend(off) xlabel(20(10)80) xmtick(20(10)80) ylabel(0(0.2)0.8) ytitle("Probability of" "Diagnosis Code") xtitle(" ") title("Region: Midwest") yline(0, lp("shortdash") lc(gs10)) xline(45, lp("shortdash_dot") lc(gs10)) note(" ") xsize(4) ysize(4)
-graph export "Results and Figures/$S_DATE/Midwest - Unadjusted Prob of Dx Hypercapnia Splines .png", as(png) name("Graph") replace
-graph save "Loc2_Encounters_Prob_Dx_spline.gph", replace
+graph export "`outdir'/Midwest - Unadjusted Prob of Dx Hypercapnia Splines .png", as(png) name("Graph") replace
+graph save "`graphdir'/Loc2_Encounters_Prob_Dx_spline.gph", replace
 restore		
 
 
@@ -987,18 +1006,15 @@ gen pr_ub = ub / (1+ub)
 
 //Title: Probability of a Diagnostic Code for Hypercapnic Respiratory Failure; Unadjusted
 twoway (line pr_lb pr_ub pa, sort lc(black black) lp(longdash longdash)) (line prob_hypercap pa, sort lc(black) lp(l)) if inrange(paco2_rounded,20,80), xscale(range(20 80)) yscale(range(0 0.8)) scheme(cleanplots) legend(off) xlabel(20(10)80) xmtick(20(10)80) ylabel(0(0.2)0.8) ytitle("Probability of" "Diagnosis Code") xtitle("Day 1 PaCO{subscript:2}") title("Region: West") yline(0, lp("shortdash") lc(gs10)) xline(45, lp("shortdash_dot") lc(gs10)) note(" ") xsize(4) ysize(4)
-graph export "Results and Figures/$S_DATE/West - Unadjusted Prob of Dx Hypercapnia Splines.png", as(png) name("Graph") replace
-graph save "Loc3_Encounters_Prob_Dx_spline.gph", replace
+graph export "`outdir'/West - Unadjusted Prob of Dx Hypercapnia Splines.png", as(png) name("Graph") replace
+graph save "`graphdir'/Loc3_Encounters_Prob_Dx_spline.gph", replace
 restore		
 
 
 
-graph combine Loc2_Encounters_Prob_Dx_spline.gph Loc1_Encounters_Prob_Dx_spline.gph Loc3_Encounters_Prob_Dx_spline.gph Loc0_Encounters_Prob_Dx_spline.gph, ///
+graph combine "`graphdir'/Loc2_Encounters_Prob_Dx_spline.gph" "`graphdir'/Loc1_Encounters_Prob_Dx_spline.gph" "`graphdir'/Loc3_Encounters_Prob_Dx_spline.gph" "`graphdir'/Loc0_Encounters_Prob_Dx_spline.gph", ///
 	cols(2) /// 
 	xcommon ///
 	ycommon ///
 	xsize(8) ysize(8)
-graph export "Results and Figures/$S_DATE/Location - Figure S3 Prob Hypercap ICD.png", name("Graph") width(3200) replace
-
-
-
+graph export "`outdir'/Location - Figure S3 Prob Hypercap ICD.png", name("Graph") width(3200) replace
