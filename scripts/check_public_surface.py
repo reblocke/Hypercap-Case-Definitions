@@ -122,7 +122,10 @@ def validate_notebook(path: Path, label: PurePosixPath) -> list[str]:
     return issues
 
 
-def validate_phenotype_rows(rows: Sequence[Mapping[str, str]]) -> list[str]:
+def validate_phenotype_rows(
+    rows: Sequence[Mapping[str, str]],
+    root: Path = ROOT,
+) -> list[str]:
     issues: list[str] = []
     expected = {f"def{index}" for index in range(1, 11)}
     identifiers = [row.get("definition_id", "") for row in rows]
@@ -172,6 +175,61 @@ def validate_phenotype_rows(rows: Sequence[Mapping[str, str]]) -> list[str]:
             issues.append(
                 f"metadata/phenotype_definitions.csv:{index}: "
                 "approval status must remain unapproved"
+            )
+
+        location = row.get("code_location", "").strip()
+        location_match = re.fullmatch(r"(.+):([1-9]\d*)", location)
+        if location and not location_match:
+            issues.append(
+                f"metadata/phenotype_definitions.csv:{index}: "
+                "code_location must be a repository-relative file:positive-line"
+            )
+            continue
+        if not location_match:
+            continue
+
+        relative_text, line_text = location_match.groups()
+        relative = PurePosixPath(relative_text)
+        if relative.is_absolute() or ".." in relative.parts:
+            issues.append(
+                f"metadata/phenotype_definitions.csv:{index}: "
+                "code_location must remain within the repository"
+            )
+            continue
+
+        source_path = root.joinpath(*relative.parts)
+        if not source_path.is_file():
+            issues.append(
+                f"metadata/phenotype_definitions.csv:{index}: "
+                f"code_location file does not exist: {relative}"
+            )
+            continue
+        try:
+            source_lines = source_path.read_text(encoding="utf-8").splitlines()
+        except (OSError, UnicodeDecodeError) as exc:
+            issues.append(
+                f"metadata/phenotype_definitions.csv:{index}: "
+                f"cannot read code_location file: {exc}"
+            )
+            continue
+
+        line_number = int(line_text)
+        if line_number > len(source_lines):
+            issues.append(
+                f"metadata/phenotype_definitions.csv:{index}: "
+                f"code_location line {line_number} is out of range"
+            )
+            continue
+
+        definition_id = row.get("definition_id", "").strip()
+        definition_pattern = re.compile(
+            rf"^\s*(?:gen|generate)\s+{re.escape(definition_id)}\s*=",
+            re.IGNORECASE,
+        )
+        if not definition_pattern.search(source_lines[line_number - 1]):
+            issues.append(
+                f"metadata/phenotype_definitions.csv:{index}: "
+                f"code_location does not define {definition_id}"
             )
     return issues
 
@@ -271,7 +329,7 @@ def validate_metadata(root: Path = ROOT) -> list[str]:
     if issues:
         return issues
 
-    issues.extend(validate_phenotype_rows(_read_csv(phenotype_path)))
+    issues.extend(validate_phenotype_rows(_read_csv(phenotype_path), root))
     issues.extend(validate_dictionary_rows(_read_csv(dictionary_path)))
 
     output_rows = _read_csv(outputs_path)

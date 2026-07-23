@@ -27,7 +27,9 @@ Workflow:
 - The guarded runner accepts INPUT_ROOT, OUTPUT_ROOT, STATA_BIN, RUN_ID, and optional EXPECTED_INPUT_SHA256 make variables.
 - INPUT_ROOT is the directory containing full_db.dta.
 - Direct two-argument Stata execution remains a compatibility path but lacks the guarded runner's unique run IDs, manifest, and artifact gate.
-- The restricted comparator requires one legacy baseline and two independent candidate runs.
+- The restricted comparator requires one legacy baseline, two guarded
+  candidates from the same nonempty commit, and a current input that still
+  matches all three run manifests.
 - The make diagram-smoke target invokes nbconvert with an explicit notebook output format and the active locked environment's python3 kernelspec.
 - The notebook requires the Python graphviz package and the system Graphviz dot executable.
 - The notebook renders fixed published counts; it does not derive them from data or validate article estimates.

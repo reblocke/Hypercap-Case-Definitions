@@ -203,7 +203,55 @@ class StataRunUnitTests(unittest.TestCase):
         self.assertEqual("run_collision", context.exception.category)
 
 
+class InputValidationSourceTests(unittest.TestCase):
+    def test_input_contract_import_error_is_saved_before_cleanup(self) -> None:
+        text = (ROOT / "stata" / "validate_input.do").read_text(encoding="utf-8")
+        import_marker = "capture frame hcd_contract: import delimited"
+        save_marker = "local import_rc = _rc"
+        failure_marker = "if `import_rc' {"
+        cleanup_marker = "capture frame drop hcd_contract"
+        exit_marker = "exit `import_rc'"
+
+        import_at = text.index(import_marker)
+        save_at = text.index(save_marker, import_at)
+        failure_at = text.index(failure_marker, save_at)
+        cleanup_at = text.index(cleanup_marker, failure_at)
+        exit_at = text.index(exit_marker, cleanup_at)
+
+        self.assertLess(import_at, save_at)
+        self.assertIn(
+            "varnames(1) stringcols(_all) clear\nlocal import_rc = _rc",
+            text[import_at : save_at + len(save_marker)],
+        )
+        self.assertLess(save_at, failure_at)
+        self.assertLess(failure_at, cleanup_at)
+        self.assertLess(cleanup_at, exit_at)
+        self.assertNotIn("exit _rc", text[failure_at:exit_at])
+
+
 class AnalysisBodyLockTests(unittest.TestCase):
+    def test_diagnostic_program_is_locked(self) -> None:
+        import hashlib
+
+        text = (ROOT / stata_run.MAIN_DO).read_text(encoding="utf-8")
+        start_marker = "capture program drop test_char_from_icd_list"
+        definition_marker = "program define test_char_from_icd_list"
+        start = text.index(start_marker)
+        definition = text.index(definition_marker, start)
+        end = text.index("\nend", definition) + len("\nend")
+        program = text[start:end] + "\n"
+        observed = hashlib.sha256(program.encode("utf-8")).hexdigest()
+        expected = "9635569dae8be5253639a7abeb69e41de62b486a0fe3b7bfc067c58b92f19225"
+
+        self.assertEqual(expected, observed)
+        self.assertIn("quietly diagt `ref_std' `icdcode'", program)
+        self.assertIn("quietly roctab `ref_std' `icdcode', nograph", program)
+        mutated = program.replace("local auc = string(r(area)", "local auc = string(r(lb)", 1)
+        self.assertNotEqual(
+            expected,
+            hashlib.sha256(mutated.encode("utf-8")).hexdigest(),
+        )
+
     def test_scientific_body_matches_hcd_000a_except_row_listing(self) -> None:
         import hashlib
 

@@ -394,12 +394,67 @@ def compare_pair(
     }
 
 
+def validate_run_set(
+    runs: dict[str, Path],
+    manifests: dict[str, dict[str, Any]],
+) -> list[dict[str, str]]:
+    failures: list[dict[str, str]] = []
+    if len(set(runs.values())) != len(runs):
+        failures.append({"category": "run_isolation", "role": "run_set"})
+
+    expected_legacy_modes = {
+        "baseline": True,
+        "candidate_1": False,
+        "candidate_2": False,
+    }
+    for role, expected in expected_legacy_modes.items():
+        if manifests[role].get("legacy_two_argument_mode") is not expected:
+            failures.append({"category": "run_role", "role": role})
+
+    candidate_commits: dict[str, str] = {}
+    for role in ("candidate_1", "candidate_2"):
+        commit = manifests[role].get("analysis_commit")
+        if not isinstance(commit, str) or not commit.strip():
+            failures.append({"category": "analysis_commit", "role": role})
+            continue
+        candidate_commits[role] = commit.strip().lower()
+    if (
+        len(candidate_commits) == 2
+        and candidate_commits["candidate_1"] != candidate_commits["candidate_2"]
+    ):
+        failures.append(
+            {"category": "candidate_commit_match", "role": "candidate_set"}
+        )
+    return failures
+
+
+def validate_post_run_input(
+    observed_input_hash: str,
+    manifests: dict[str, dict[str, Any]],
+    expected_input_hash: str | None,
+) -> list[dict[str, str]]:
+    failures: list[dict[str, str]] = []
+    for role, manifest in manifests.items():
+        recorded_hash = manifest.get("input", {}).get("sha256")
+        if (
+            not isinstance(recorded_hash, str)
+            or observed_input_hash.lower() != recorded_hash.lower()
+        ):
+            failures.append({"category": "post_run_input_hash", "role": role})
+    if (
+        expected_input_hash
+        and observed_input_hash.lower() != expected_input_hash.lower()
+    ):
+        failures.append({"category": "post_run_input_hash", "role": "expected"})
+    return failures
+
+
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(description=__doc__)
     result.add_argument("--baseline-run", required=True)
     result.add_argument("--candidate-run-1", required=True)
     result.add_argument("--candidate-run-2", required=True)
-    result.add_argument("--input-file")
+    result.add_argument("--input-file", required=True)
     result.add_argument("--expected-input-sha256")
     result.add_argument("--report", required=True)
     return result
@@ -410,23 +465,29 @@ def main(argv: Iterable[str] | None = None) -> int:
     baseline = Path(args.baseline_run).resolve()
     candidate_one = Path(args.candidate_run_1).resolve()
     candidate_two = Path(args.candidate_run_2).resolve()
-    comparisons = [
-        compare_pair(baseline, candidate_one, "baseline_vs_candidate_1"),
-        compare_pair(candidate_one, candidate_two, "candidate_repeatability"),
-    ]
-    failures: list[dict[str, Any]] = []
+    runs = {
+        "baseline": baseline,
+        "candidate_1": candidate_one,
+        "candidate_2": candidate_two,
+    }
+    manifests = {role: load_run(path)[0] for role, path in runs.items()}
+    failures: list[dict[str, Any]] = validate_run_set(runs, manifests)
 
-    if len({baseline, candidate_one, candidate_two}) != 3:
-        failures.append({"category": "run_isolation", "artifact": "run_directories"})
+    observed_input_hash = stata_run.sha256_file(Path(args.input_file))
+    failures.extend(
+        validate_post_run_input(
+            observed_input_hash,
+            manifests,
+            args.expected_input_sha256,
+        )
+    )
 
-    observed_input_hash = ""
-    if args.input_file:
-        observed_input_hash = stata_run.sha256_file(Path(args.input_file))
-        if (
-            args.expected_input_sha256
-            and observed_input_hash.lower() != args.expected_input_sha256.lower()
-        ):
-            failures.append({"category": "post_run_input_hash", "artifact": "input"})
+    comparisons = []
+    if not failures:
+        comparisons = [
+            compare_pair(baseline, candidate_one, "baseline_vs_candidate_1"),
+            compare_pair(candidate_one, candidate_two, "candidate_repeatability"),
+        ]
 
     report = {
         "schema_version": 1,

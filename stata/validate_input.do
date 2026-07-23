@@ -11,10 +11,11 @@ capture frame drop hcd_contract
 frame create hcd_contract
 capture frame hcd_contract: import delimited using "`contract_file'", ///
     varnames(1) stringcols(_all) clear
-if _rc {
+local import_rc = _rc
+if `import_rc' {
     capture frame drop hcd_contract
     di as error "Could not read the input contract."
-    exit _rc
+    exit `import_rc'
 }
 
 frame hcd_contract: levelsof variable_name if workflow_role == "runtime_input", ///

@@ -49,6 +49,29 @@ the neutral wrapper tail. It does not suppress substantive analysis commands
 or results. Workbook cells and structure and decoded image pixels are compared
 directly rather than inferred from transcript equality.
 
+## Review-Finding Re-adjudication
+
+On 2026-07-23 Mountain Time, the preserved three-run evidence was re-compared
+after hardening the comparator. The re-adjudication intentionally omitted the
+optional expected-input-hash argument so that the default documented command
+exercised the corrected behavior. It confirmed:
+
+- the supplied baseline was a legacy-interface run;
+- both candidates were guarded runs from the same nonempty candidate commit;
+- the current restricted input still matched the input hash in every run
+  manifest;
+- baseline equivalence passed; and
+- candidate repeatability passed.
+
+A targeted Stata negative-path smoke also confirmed that a failed contract
+import returns its original nonzero status after frame cleanup. A separate
+positive-path preflight against the current restricted input passed. The three
+full analyses were not repeated because the remediation changed only validation
+failure handling, comparison adjudication, tests, and metadata—not the locked
+scientific analysis. This re-adjudication continues to attest the baseline and
+candidate commits named above; it does not claim an end-to-end analysis run of
+the later review-remediation commit.
+
 ## Interpretation and Boundary
 
 These checks support that HCD-000B preserves the baseline downstream results

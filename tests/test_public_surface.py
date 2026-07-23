@@ -75,6 +75,51 @@ class PublicSurfaceUnitTests(unittest.TestCase):
         issues = audit.validate_phenotype_rows(rows)
         self.assertTrue(any("must remain unapproved" in issue for issue in issues))
 
+    def test_malformed_phenotype_code_location_is_detected(self) -> None:
+        rows = [
+            {
+                "definition_id": "def1",
+                "code_location": "analysis.do:not-a-line",
+            }
+        ]
+        issues = audit.validate_phenotype_rows(rows)
+        self.assertTrue(
+            any("file:positive-line" in issue for issue in issues),
+            "\n".join(issues),
+        )
+
+    def test_out_of_range_phenotype_code_location_is_detected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "analysis.do").write_text("gen def1 = 1\n", encoding="utf-8")
+            rows = [
+                {
+                    "definition_id": "def1",
+                    "code_location": "analysis.do:2",
+                }
+            ]
+            issues = audit.validate_phenotype_rows(rows, root)
+        self.assertTrue(
+            any("line 2 is out of range" in issue for issue in issues),
+            "\n".join(issues),
+        )
+
+    def test_wrong_phenotype_code_location_is_detected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "analysis.do").write_text("gen def2 = 1\n", encoding="utf-8")
+            rows = [
+                {
+                    "definition_id": "def1",
+                    "code_location": "analysis.do:1",
+                }
+            ]
+            issues = audit.validate_phenotype_rows(rows, root)
+        self.assertTrue(
+            any("does not define def1" in issue for issue in issues),
+            "\n".join(issues),
+        )
+
     def test_identity_drift_is_detected(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

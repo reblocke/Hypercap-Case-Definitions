@@ -133,10 +133,14 @@ make stata-compare \
   INPUT_ROOT="/approved/restricted/hypercapnia"
 ```
 
-The comparison checks workbook values and structure, decoded PNG pixels,
-required Stata graph presence, normalized analysis logs, dependencies, input
-identity, and candidate repeatability. Its detailed report remains under
-ignored `outputs/`. The latest sanitized validation outcome is recorded in
+Before comparing artifacts, the comparator requires a legacy baseline, two
+guarded candidates, and matching nonempty candidate commit identifiers. It
+also rehashes the current input and checks it against every run manifest even
+when the optional expected-hash pin is omitted. It then checks workbook values
+and structure, decoded PNG pixels, required Stata graph presence, normalized
+analysis logs, dependencies, input identity, and candidate repeatability. Its
+detailed report remains under ignored `outputs/`. The latest sanitized
+validation outcome is recorded in
 [`docs/VALIDATION.md`](docs/VALIDATION.md).
 
 The exact publication-time package versions are unresolved. The code-derived

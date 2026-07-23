@@ -9,6 +9,12 @@
 - Added a value-suppressing comparator for one legacy baseline and two
   independent candidate runs, including semantic workbook, decoded-pixel,
   normalized-log, environment, dependency, and repeatability checks.
+- Hardened comparison adjudication so current input drift, incorrect run roles,
+  missing or mismatched candidate commits, and omission of the current input
+  fail before equivalence or repeatability labels are assigned.
+- Preserved Stata contract-import failures through cleanup, separately locked
+  the diagnostic-performance program, and made phenotype source locations
+  executable-code checks rather than unchecked line-number annotations.
 - Removed the only row-level `list` output from the analysis log while locking
   the remaining scientific analysis body against unintentional changes.
 - Expanded the locked Python environment for workbook and image comparison and
@@ -16,6 +22,9 @@
 - Completed a clean legacy-baseline run and two clean candidate runs against
   the available restricted input; baseline equivalence, candidate
   repeatability, output completeness, and post-run input identity passed.
+- Re-adjudicated those preserved runs with the strengthened comparator and
+  confirmed the corrected contract-import failure path plus the current
+  restricted-input preflight without repeating unchanged scientific analyses.
 - Defined public, restricted downstream, and upstream reproducibility boundaries.
 - Added code-derived phenotype, upstream provenance, Stata dependency, and generated-output metadata without approving unresolved scientific rules.
 - Normalized the data dictionary to one row per input or derived variable and separated generated artifacts into an output manifest.

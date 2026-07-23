@@ -101,12 +101,16 @@ For a code change that is intended to preserve results:
      INPUT_ROOT="/approved/restricted/hypercapnia"
    ```
 
-The comparator checks environment and input identity, dependency hashes,
-semantic workbook content, decoded PNG pixels, required nonempty Stata graph
-files, copied-do hashes, and normalized logs. It reports only discrepancy
-categories, locations, and hashes—not cell values or row-level content.
-Passing baseline equivalence and candidate repeatability are separate required
-conditions. A sanitized record of the completed HCD-000B validation is in
+Before assigning equivalence or repeatability labels, the comparator requires a
+legacy baseline, two guarded candidates, and matching nonempty candidate commit
+identifiers. It rehashes the current input and compares that hash with every run
+manifest even when no optional expected-hash pin is supplied. It then checks
+environment and input identity, dependency hashes, semantic workbook content,
+decoded PNG pixels, required nonempty Stata graph files, copied-do hashes, and
+normalized logs. It reports only discrepancy categories, locations, and
+hashes—not cell values or row-level content. Passing baseline equivalence and
+candidate repeatability are separate required conditions. A sanitized record
+of the completed HCD-000B validation is in
 [`VALIDATION.md`](VALIDATION.md); detailed evidence remains ignored and local.
 
 The public checks do not execute Stata and do not establish that article
