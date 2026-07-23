@@ -13,6 +13,9 @@
   the remaining scientific analysis body against unintentional changes.
 - Expanded the locked Python environment for workbook and image comparison and
   documented the restricted validation protocol.
+- Completed a clean legacy-baseline run and two clean candidate runs against
+  the available restricted input; baseline equivalence, candidate
+  repeatability, output completeness, and post-run input identity passed.
 - Defined public, restricted downstream, and upstream reproducibility boundaries.
 - Added code-derived phenotype, upstream provenance, Stata dependency, and generated-output metadata without approving unresolved scientific rules.
 - Normalized the data dictionary to one row per input or derived variable and separated generated artifacts into an output manifest.

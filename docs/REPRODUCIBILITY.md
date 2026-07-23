@@ -106,7 +106,8 @@ semantic workbook content, decoded PNG pixels, required nonempty Stata graph
 files, copied-do hashes, and normalized logs. It reports only discrepancy
 categories, locations, and hashes—not cell values or row-level content.
 Passing baseline equivalence and candidate repeatability are separate required
-conditions.
+conditions. A sanitized record of the completed HCD-000B validation is in
+[`VALIDATION.md`](VALIDATION.md); detailed evidence remains ignored and local.
 
 The public checks do not execute Stata and do not establish that article
 estimates were reproduced. A full reproduction claim requires a controlled run

@@ -93,6 +93,111 @@ class ComparatorUnitTests(unittest.TestCase):
         self.assertEqual(left, right)
         self.assertNotIn("restricted row output", left)
 
+    def test_log_normalization_excludes_driver_tail(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            baseline = root / "baseline.log"
+            candidate = root / "candidate.log"
+            analysis = (
+                "/* ------------------\n"
+                "   Pre-processing\n"
+                "--------------------*/\n"
+                ". display \"analysis\"\n"
+            )
+            baseline.write_text(
+                analysis + "\nend of do-file\n. display \"driver\"\n",
+                encoding="utf-8",
+            )
+            candidate.write_text(analysis, encoding="utf-8")
+            left = compare.normalize_log(baseline, root, root)
+            right = compare.normalize_log(candidate, root, root)
+        self.assertEqual(left, right)
+        self.assertNotIn("driver", left)
+
+    def test_stata_wrapped_path_is_reassembled_before_redaction(self) -> None:
+        lines = [
+            "file /approved/output/hcd0",
+            "> 00b/Overall Cohort chars.xlsx saved",
+        ]
+        self.assertEqual(
+            ["file /approved/output/hcd000b/Overall Cohort chars.xlsx saved"],
+            compare.unwrap_stata_continuations(lines),
+        )
+
+    def test_indented_stata_continuation_is_reassembled(self) -> None:
+        lines = ["(file /approved/All_Prob", "    > _Dx.gph not found)"]
+        self.assertEqual(
+            ["(file /approved/All_Prob_Dx.gph not found)"],
+            compare.unwrap_stata_continuations(lines),
+        )
+
+    def test_parenthesized_file_message_is_reassembled(self) -> None:
+        lines = [
+            "(file /approved/Research",
+            "    Projects/output.gph not",
+            "    found)",
+            "",
+        ]
+        self.assertEqual(
+            ["(file /approved/Research Projects/output.gph not found)", ""],
+            compare.unwrap_stata_parenthesized_file_messages(lines),
+        )
+
+    def test_path_redaction_handles_unmarked_stata_line_wrap(self) -> None:
+        path = Path("/approved/Research Projects/output/run-one")
+        text = "file /approved/Research\nProjects/output/run-one/figure.png saved\n"
+        self.assertEqual(
+            "file <OUTPUT>/figure.png saved\n",
+            compare.redact_wrapped_path(text, path, "<OUTPUT>"),
+        )
+
+    def test_wrapped_file_saved_message_is_reassembled(self) -> None:
+        lines = [
+            "file <OUTPUT>/Definition Overlap",
+            "HeatPlot.png saved as PNG format",
+            "",
+        ]
+        self.assertEqual(
+            [
+                "file <OUTPUT>/Definition Overlap HeatPlot.png saved as PNG format",
+                "",
+            ],
+            compare.unwrap_stata_file_messages(lines),
+        )
+
+    def test_wrapped_png_format_suffix_is_reassembled(self) -> None:
+        lines = [
+            "file <OUTPUT>/figure.png saved as PNG",
+            "format",
+            "",
+        ]
+        self.assertEqual(
+            ["file <OUTPUT>/figure.png saved as PNG format", ""],
+            compare.unwrap_stata_file_messages(lines),
+        )
+
+    def test_wrapped_saved_as_suffix_is_reassembled(self) -> None:
+        lines = [
+            "file <OUTPUT>/figure.png saved as",
+            "PNG format",
+            "",
+        ]
+        self.assertEqual(
+            ["file <OUTPUT>/figure.png saved as PNG format", ""],
+            compare.unwrap_stata_file_messages(lines),
+        )
+
+    def test_wrapped_saved_then_as_suffix_is_reassembled(self) -> None:
+        lines = [
+            "file <OUTPUT>/figure.png saved",
+            "as PNG format",
+            "",
+        ]
+        self.assertEqual(
+            ["file <OUTPUT>/figure.png saved as PNG format", ""],
+            compare.unwrap_stata_file_messages(lines),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

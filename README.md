@@ -45,6 +45,7 @@ Support listed in the article includes the American Thoracic Society ASPIRE Fell
 | `Case Definitions Consort.ipynb` | Python/Graphviz notebook for the CONSORT-style case-definition diagram. |
 | `data_dictionary.md`, `data_dictionary.csv` | Human- and machine-readable documentation for expected input and derived variables. |
 | `docs/REPRODUCIBILITY.md` | Public, restricted downstream, and upstream reproducibility boundaries. |
+| `docs/VALIDATION.md` | Sanitized baseline-equivalence and repeatability result for the guarded Stata workflow. |
 | `docs/SCIENTIFIC_ALIGNMENT.md` | Unresolved differences between the final article and current implementation. |
 | `metadata/` | Code-derived phenotype inventory, upstream dependency record, Stata dependency inventory, and generated-output manifest. |
 | `CITATION.cff` | Structured citation metadata for the repository and the preferred CHEST article citation. |
@@ -135,7 +136,8 @@ make stata-compare \
 The comparison checks workbook values and structure, decoded PNG pixels,
 required Stata graph presence, normalized analysis logs, dependencies, input
 identity, and candidate repeatability. Its detailed report remains under
-ignored `outputs/`.
+ignored `outputs/`. The latest sanitized validation outcome is recorded in
+[`docs/VALIDATION.md`](docs/VALIDATION.md).
 
 The exact publication-time package versions are unresolved. The code-derived
 dependency inventory is in `metadata/stata_dependencies.csv`.

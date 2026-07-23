@@ -157,6 +157,75 @@ def strip_row_listing(lines: list[str]) -> list[str]:
     return output
 
 
+def unwrap_stata_continuations(lines: list[str]) -> list[str]:
+    output: list[str] = []
+    for line in lines:
+        stripped = line.lstrip()
+        if stripped.startswith("> ") and output:
+            output[-1] += stripped[2:]
+        else:
+            output.append(line)
+    return output
+
+
+def unwrap_stata_parenthesized_file_messages(lines: list[str]) -> list[str]:
+    output: list[str] = []
+    index = 0
+    while index < len(lines):
+        message = lines[index]
+        if not message.startswith("(file ") or message.rstrip().endswith(")"):
+            output.append(message)
+            index += 1
+            continue
+        while index + 1 < len(lines) and not message.rstrip().endswith(")"):
+            message += " " + lines[index + 1].strip()
+            index += 1
+        output.append(message)
+        index += 1
+    return output
+
+
+def unwrap_stata_file_messages(lines: list[str]) -> list[str]:
+    output: list[str] = []
+    index = 0
+    while index < len(lines):
+        message = lines[index]
+        if not message.startswith("file "):
+            output.append(message)
+            index += 1
+            continue
+
+        while index + 1 < len(lines):
+            following = lines[index + 1]
+            missing_saved = " saved" not in message
+            incomplete_format = (
+                " saved as" in message
+                and not message.rstrip().endswith(" format")
+            )
+            wrapped_saved_as = (
+                message.rstrip().endswith(" saved")
+                and following.lstrip().startswith("as ")
+            )
+            if not (missing_saved or incomplete_format or wrapped_saved_as):
+                break
+            message += " " + following.strip()
+            index += 1
+        output.append(message)
+        index += 1
+    return output
+
+
+def redact_wrapped_path(text: str, path: Path, replacement: str) -> str:
+    value = path.as_posix()
+    gap = r"(?:\r?\n[ \t]*)?"
+    characters = [
+        r"(?:[ \t]+|\r?\n[ \t]*)" if character == " " else re.escape(character)
+        for character in value
+    ]
+    pattern = gap.join(characters)
+    return re.sub(pattern, replacement, text)
+
+
 def normalize_log(path: Path, artifact_root: Path, run_root: Path) -> str:
     text = path.read_text(encoding="utf-8", errors="replace")
     start_match = re.search(r"(?m)^.*Pre-processing\s*$", text)
@@ -166,12 +235,26 @@ def normalize_log(path: Path, artifact_root: Path, run_root: Path) -> str:
     if start < 0:
         start = start_match.start()
 
-    epilogue = text.find("/* Aggregate-only run metrics", start)
-    end = epilogue if epilogue >= 0 else len(text)
-    excerpt = text[start:end]
-    for root in (artifact_root, run_root, artifact_root.parent):
-        excerpt = excerpt.replace(root.as_posix(), "<OUTPUT>")
-        excerpt = excerpt.replace(str(root), "<OUTPUT>")
+    end_candidates = [
+        location
+        for location in (
+            text.find("/* Aggregate-only run metrics", start),
+            text.find("\nend of do-file", start),
+        )
+        if location >= 0
+    ]
+    end = min(end_candidates) if end_candidates else len(text)
+    lines = unwrap_stata_continuations(text[start:end].splitlines())
+    lines = unwrap_stata_parenthesized_file_messages(lines)
+    lines = unwrap_stata_file_messages(lines)
+    excerpt = "\n".join(lines)
+    roots = sorted(
+        {artifact_root, run_root, artifact_root.parent},
+        key=lambda item: len(item.as_posix()),
+        reverse=True,
+    )
+    for root in roots:
+        excerpt = redact_wrapped_path(excerpt, root, "<OUTPUT>")
     mac_user_prefix = "/" + "Users" + "/"
     excerpt = re.sub(
         re.escape(mac_user_prefix) + r"[^\n\"]+/full_db[.]dta",
@@ -183,6 +266,8 @@ def normalize_log(path: Path, artifact_root: Path, run_root: Path) -> str:
     previous_blank = False
     for line in lines:
         clean = line.rstrip()
+        if clean.strip() == ".":
+            continue
         blank = not clean
         if blank and previous_blank:
             continue
