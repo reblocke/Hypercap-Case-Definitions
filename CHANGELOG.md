@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Added a guarded restricted-data Stata runner with unique run identifiers,
+  preflight dependency checks, data-dictionary-driven input validation,
+  provenance manifests, explicit completion status, and a 40-artifact success
+  gate.
+- Added a value-suppressing comparator for one legacy baseline and two
+  independent candidate runs, including semantic workbook, decoded-pixel,
+  normalized-log, environment, dependency, and repeatability checks.
+- Removed the only row-level `list` output from the analysis log while locking
+  the remaining scientific analysis body against unintentional changes.
+- Expanded the locked Python environment for workbook and image comparison and
+  documented the restricted validation protocol.
 - Defined public, restricted downstream, and upstream reproducibility boundaries.
 - Added code-derived phenotype, upstream provenance, Stata dependency, and generated-output metadata without approving unresolved scientific rules.
 - Normalized the data dictionary to one row per input or derived variable and separated generated artifacts into an output manifest.

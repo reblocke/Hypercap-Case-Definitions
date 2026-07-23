@@ -23,10 +23,24 @@ This public repository contains Stata analysis code and a Python/Graphviz diagra
 Canonical Stata command from the repository root:
 
 ```bash
-stata-mp -b do "Hypercapnia Case Definitions.do" "data/private" "outputs/stata"
+make stata-run STATA_BIN="/path/to/stata" INPUT_ROOT="/approved/restricted/hypercapnia"
 ```
 
-The first argument is the input root containing `full_db.dta`; the second argument is the output root. The script should fail clearly if the restricted input is absent.
+`INPUT_ROOT` contains `full_db.dta`; `OUTPUT_ROOT` defaults to
+`outputs/stata`. The guarded runner must fail clearly for a missing input,
+dependency, unsafe or colliding run ID, failed input contract, failed Stata
+status, or incomplete legacy artifact inventory.
+
+For equivalence validation, use clean isolated baseline and candidate checkouts,
+run the baseline once and candidate twice, then invoke:
+
+```bash
+make stata-compare BASELINE_RUN="..." CANDIDATE_RUN_1="..." CANDIDATE_RUN_2="..." INPUT_ROOT="..."
+```
+
+Keep manifests, dependency hashes, input hashes, comparison details, and all
+generated results under ignored `outputs/` paths. A public validation summary
+may name commits, environment, checks, and pass/fail status only.
 
 Optional CONSORT notebook workflow:
 
@@ -54,5 +68,7 @@ article estimates were reproduced.
 - Run `make diagram-smoke` when Python 3.11 and Graphviz are available.
 - Validate `CITATION.cff` as YAML and, when available, with `cffconvert`.
 - Confirm no hard-coded user-home paths, Windows local paths, legacy generated-output roots, root `.gph`, root `.log`, or restricted-data paths are introduced.
+- Confirm the guarded runner is collision-safe and that `SUCCESS` cannot be written without fresh Stata status, completion, and all 40 legacy artifacts.
+- Confirm comparison reports never expose workbook values or row-level log content.
 - Confirm README, `llms.txt`, `CITATION.cff`, and the data dictionary agree on DOI `10.1016/j.chest.2025.08.002`, PMID `40885535`, PMCID `PMC12739763`, and the restricted TriNetX data boundary.
 - If Stata is unavailable or the restricted data are absent, document the skipped smoke check rather than creating synthetic patient-like data.

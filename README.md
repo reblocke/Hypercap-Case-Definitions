@@ -39,6 +39,9 @@ Support listed in the article includes the American Thoracic Society ASPIRE Fell
 | Path | Purpose |
 | --- | --- |
 | `Hypercapnia Case Definitions.do` | Main Stata workflow for cohort filtering, case-definition emulation, agreement analyses, descriptive tables, Cox models, diagnosis-code performance, and figures. |
+| `scripts/run_stata.sh`, `scripts/stata_run.py` | Guarded restricted-data runner with unique run folders, provenance capture, and artifact-completeness checks. |
+| `scripts/compare_stata_runs.py` | Value-suppressing comparator for one legacy baseline and two candidate runs. |
+| `stata/` | Dependency preflight, input-contract validation, and neutral Stata driver files. |
 | `Case Definitions Consort.ipynb` | Python/Graphviz notebook for the CONSORT-style case-definition diagram. |
 | `data_dictionary.md`, `data_dictionary.csv` | Human- and machine-readable documentation for expected input and derived variables. |
 | `docs/REPRODUCIBILITY.md` | Public, restricted downstream, and upstream reproducibility boundaries. |
@@ -89,15 +92,50 @@ validate the article's numerical results. See
 
 ### Restricted Stata Analysis
 
-Install the required community Stata packages before running the full workflow. Observed dependencies include `missings`, `table1_mc`, `heatplot`, `kappaetc`, `diagt`, `mkspline2`, `xblc`, `cleanplots`, and related graphics/table dependencies.
+Install the required community Stata packages before running the full workflow.
+The runner checks direct and transitive dependencies before loading the
+restricted input. The complete code-derived inventory is in
+`metadata/stata_dependencies.csv`.
 
-Canonical Stata run from the repository root:
+Canonical guarded run from the repository root:
+
+```bash
+make stata-run \
+  STATA_BIN="/path/to/stata" \
+  INPUT_ROOT="/approved/restricted/hypercapnia" \
+  OUTPUT_ROOT="outputs/stata"
+```
+
+`INPUT_ROOT` is the directory containing `full_db.dta`. The runner creates a
+unique run directory, records hashes and the Stata environment in an ignored
+manifest, verifies the input contract, and writes `SUCCESS` only after Stata
+reports completion and all 40 legacy artifacts are present and nonempty.
+Existing run directories are never reused.
+
+The Stata do-file remains directly invocable for compatibility:
 
 ```bash
 stata-mp -b do "Hypercapnia Case Definitions.do" "data/private" "outputs/stata"
 ```
 
-The first argument is the directory containing `full_db.dta`; the second argument is the output root. If arguments are omitted, the script defaults to `data/private` and `outputs/stata`.
+Direct invocation uses a date-based folder and does not provide the runner's
+collision protection, provenance manifest, or completeness gate.
+
+To assess a change, run the legacy baseline once and the guarded candidate
+twice in clean, isolated checkouts, then compare them:
+
+```bash
+make stata-compare \
+  BASELINE_RUN="outputs/validation/baseline" \
+  CANDIDATE_RUN_1="outputs/validation/candidate-1" \
+  CANDIDATE_RUN_2="outputs/validation/candidate-2" \
+  INPUT_ROOT="/approved/restricted/hypercapnia"
+```
+
+The comparison checks workbook values and structure, decoded PNG pixels,
+required Stata graph presence, normalized analysis logs, dependencies, input
+identity, and candidate repeatability. Its detailed report remains under
+ignored `outputs/`.
 
 The exact publication-time package versions are unresolved. The code-derived
 dependency inventory is in `metadata/stata_dependencies.csv`.
@@ -109,7 +147,12 @@ system Graphviz `dot` executable.
 
 ## Outputs
 
-Generated outputs are written under ignored `outputs/` folders and should not be committed as source files. The Stata workflow produces dated run folders containing logs, copied do-files, tables, heatmaps, spline figures, and temporary Stata graph files. The notebook writes the CONSORT diagram under `outputs/figures/`.
+Generated outputs are written under ignored `outputs/` folders and should not
+be committed as source files. The guarded Stata workflow produces unique
+`outputs/stata/<run_id>/` folders containing a sanitized manifest, status and
+dependency records, logs, copied do-files, tables, heatmaps, spline figures,
+and temporary Stata graph files. The notebook writes the CONSORT diagram under
+`outputs/figures/`.
 
 The machine-readable inventory is `metadata/output_manifest.csv`.
 

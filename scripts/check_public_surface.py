@@ -278,6 +278,20 @@ def validate_metadata(root: Path = ROOT) -> list[str]:
     output_ids = [row.get("output_id", "") for row in output_rows]
     if len(output_rows) != 12 or len(set(output_ids)) != 12:
         issues.append("metadata/output_manifest.csv: expected 12 unique outputs")
+    expected_counts = {
+        "run_provenance": 9,
+        "overall_cohort": 1,
+        "definition_overlap_heatmaps": 4,
+        "testing_strategy_kappa": 3,
+        "definition_summary": 10,
+        "workup_summary": 1,
+        "location_summary": 1,
+        "location_kappa": 4,
+        "encounter_spline_intermediates": 4,
+        "paco2_spline": 1,
+        "location_splines": 9,
+        "consort_diagram": 1,
+    }
     for index, row in enumerate(output_rows, start=2):
         if row.get("tracked") != "false":
             issues.append(
@@ -287,28 +301,59 @@ def validate_metadata(root: Path = ROOT) -> list[str]:
             issues.append(
                 f"metadata/output_manifest.csv:{index}: output must be under outputs/"
             )
+        output_id = row.get("output_id", "")
+        expected_required = "false" if output_id == "consort_diagram" else "true"
+        if row.get("required_for_stata_success") != expected_required:
+            issues.append(
+                f"metadata/output_manifest.csv:{index}: invalid Stata success requirement"
+            )
+        try:
+            observed_count = int(row.get("expected_count", ""))
+        except ValueError:
+            observed_count = -1
+        if observed_count != expected_counts.get(output_id):
+            issues.append(
+                f"metadata/output_manifest.csv:{index}: unexpected artifact count"
+            )
+        if not row.get("validation_rule", "").strip():
+            issues.append(
+                f"metadata/output_manifest.csv:{index}: validation rule is required"
+            )
 
     dependency_rows = _read_csv(dependencies_path)
     expected_dependencies = {
         "cleanplots",
+        "colorpalette",
+        "colrspace",
         "diagt",
+        "gtools",
         "heatplot",
         "kappaetc",
         "missings",
         "mkspline2",
+        "moremata",
         "table1_mc",
         "xblc",
     }
     dependency_names = {row.get("name", "") for row in dependency_rows}
-    if dependency_names != expected_dependencies or len(dependency_rows) != 8:
+    if dependency_names != expected_dependencies or len(dependency_rows) != 12:
         issues.append(
-            "metadata/stata_dependencies.csv: expected the eight observed dependencies"
+            "metadata/stata_dependencies.csv: expected 12 direct and transitive dependencies"
         )
     for index, row in enumerate(dependency_rows, start=2):
         if row.get("publication_required_version") != "UNRESOLVED":
             issues.append(
                 f"metadata/stata_dependencies.csv:{index}: publication version "
                 "must remain UNRESOLVED"
+            )
+        expected_required = "false" if row.get("name") == "gtools" else "true"
+        if row.get("required_for_current_analysis") != expected_required:
+            issues.append(
+                f"metadata/stata_dependencies.csv:{index}: invalid required flag"
+            )
+        if not row.get("preflight_check", "").strip():
+            issues.append(
+                f"metadata/stata_dependencies.csv:{index}: preflight check is required"
             )
 
     try:
@@ -320,6 +365,12 @@ def validate_metadata(root: Path = ROOT) -> list[str]:
             "producer_commit": "UNRESOLVED",
             "input_schema_version": "UNRESOLVED",
             "expected_artifact": "full_db.dta",
+            "observed_validation_checkout_commit": (
+                "1185a6bc9957a02cb24be5f1f7fa10c48d8a4c13"
+            ),
+            "observed_validation_artifact_path": (
+                "Data/derived/hypercapnia/preprocessing/full_db.dta"
+            ),
             "access_classification": "restricted",
             "redistributable": "false",
             "verification_status": "blocked",
@@ -360,7 +411,12 @@ def validate_identity(root: Path = ROOT) -> list[str]:
             issues.append(f"{relative}: required workflow file is missing")
             continue
         text = path.read_text(encoding="utf-8")
-        for command in ("make check", "make diagram-smoke"):
+        for command in (
+            "make check",
+            "make diagram-smoke",
+            "make stata-run",
+            "make stata-compare",
+        ):
             if command not in text:
                 issues.append(f"{relative}: missing canonical command {command}")
     return issues

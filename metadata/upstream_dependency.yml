@@ -4,9 +4,11 @@ producer_commit: UNRESOLVED
 input_schema_version: UNRESOLVED
 expected_artifact: full_db.dta
 expected_local_path: data/private/full_db.dta
+observed_validation_checkout_commit: 1185a6bc9957a02cb24be5f1f7fa10c48d8a4c13
+observed_validation_artifact_path: Data/derived/hypercapnia/preprocessing/full_db.dta
 unit_of_observation: adult emergency-department or inpatient encounter
 access_classification: restricted
 redistributable: false
 public_repository_role: downstream_analysis_input
 verification_status: blocked
-notes: Exact article-input producer commit, schema, and approved manifest procedure are not available in this public repository.
+notes: The validation checkout and artifact location are observed context only; the exact article-input producer commit, schema, and approved manifest procedure remain unresolved.

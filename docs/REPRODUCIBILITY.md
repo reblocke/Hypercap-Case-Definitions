@@ -49,14 +49,64 @@ does not calculate those counts from patient-level data or Stata outputs.
 
 The Stata workflow starts with an analysis-ready, restricted encounter-level
 file named `full_db.dta`. With approved access to that file and licensed Stata,
-the current command is:
+the canonical guarded command is:
+
+```bash
+make stata-run \
+  STATA_BIN="/path/to/stata" \
+  INPUT_ROOT="/approved/restricted/hypercapnia" \
+  OUTPUT_ROOT="outputs/stata"
+```
+
+The runner:
+
+- refuses a missing input, unsafe run identifier, or existing run directory;
+- records the analysis commit, dirty-worktree state, input and code hashes,
+  Stata environment, and dependency hashes in an ignored manifest;
+- preflights required community Stata dependencies;
+- validates all documented runtime inputs before analysis;
+- treats Stata's explicit status and completion artifacts—not its shell return
+  code alone—as authoritative; and
+- writes `SUCCESS` only when all 40 expected legacy artifacts are present and
+  nonempty.
+
+The input and output arguments may point to other approved local directories.
+Neither the restricted input, the local manifest, detailed comparison report,
+nor row-level derivatives may be committed.
+
+Direct two-argument execution remains available as a compatibility path:
 
 ```bash
 stata-mp -b do "Hypercapnia Case Definitions.do" "data/private" "outputs/stata"
 ```
 
-The input and output arguments may point to other approved local directories.
-Neither the restricted input nor row-level derivatives may be committed.
+That path does not provide the runner's collision protection, complete
+provenance manifest, or output-inventory gate.
+
+## Restricted Validation Protocol
+
+For a code change that is intended to preserve results:
+
+1. Use clean, isolated checkouts of the named baseline and candidate commits.
+2. Verify the restricted input hash before each run.
+3. Run the baseline once using the legacy two-argument interface.
+4. Run the candidate twice using different run identifiers.
+5. Compare the three isolated outputs with:
+
+   ```bash
+   make stata-compare \
+     BASELINE_RUN="outputs/validation/baseline" \
+     CANDIDATE_RUN_1="outputs/validation/candidate-1" \
+     CANDIDATE_RUN_2="outputs/validation/candidate-2" \
+     INPUT_ROOT="/approved/restricted/hypercapnia"
+   ```
+
+The comparator checks environment and input identity, dependency hashes,
+semantic workbook content, decoded PNG pixels, required nonempty Stata graph
+files, copied-do hashes, and normalized logs. It reports only discrepancy
+categories, locations, and hashes—not cell values or row-level content.
+Passing baseline equivalence and candidate repeatability are separate required
+conditions.
 
 The public checks do not execute Stata and do not establish that article
 estimates were reproduced. A full reproduction claim requires a controlled run
@@ -75,7 +125,9 @@ This repository does not reproduce:
 
 The upstream repository is identified in
 `metadata/upstream_dependency.yml`, but the exact producer commit and schema
-version for the article dataset remain `UNRESOLVED`.
+version for the article dataset remain `UNRESOLVED`. A checkout commit and
+artifact location observed during local validation are recorded only as
+context; they do not establish which commit produced the restricted file.
 
 ## Scientific Alignment Boundary
 

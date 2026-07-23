@@ -20,11 +20,14 @@ Data boundary:
 Workflow:
 - Public validation command: make check
 - Public diagram command: make diagram-smoke
+- Guarded restricted Stata command: make stata-run
+- Restricted comparison command: make stata-compare
 - Public Python version: 3.11
 - Install locked public dependencies with: python3 -m pip install --require-hashes -r requirements.txt
-- Main Stata command: stata-mp -b do "Hypercapnia Case Definitions.do" "data/private" "outputs/stata"
-- The first Stata argument is the directory containing full_db.dta.
-- The second Stata argument is the generated-output root.
+- The guarded runner accepts INPUT_ROOT, OUTPUT_ROOT, STATA_BIN, RUN_ID, and optional EXPECTED_INPUT_SHA256 make variables.
+- INPUT_ROOT is the directory containing full_db.dta.
+- Direct two-argument Stata execution remains a compatibility path but lacks the guarded runner's unique run IDs, manifest, and artifact gate.
+- The restricted comparator requires one legacy baseline and two independent candidate runs.
 - The make diagram-smoke target invokes nbconvert with an explicit notebook output format and the active locked environment's python3 kernelspec.
 - The notebook requires the Python graphviz package and the system Graphviz dot executable.
 - The notebook renders fixed published counts; it does not derive them from data or validate article estimates.
@@ -32,6 +35,9 @@ Workflow:
 Key files:
 - README.md: human-facing project overview, article links, run commands, license, and data restrictions.
 - Hypercapnia Case Definitions.do: Stata workflow for case-definition emulation, agreement analyses, tables, and figures.
+- scripts/run_stata.sh and scripts/stata_run.py: restricted-data runner, provenance capture, and output-completeness gate.
+- scripts/compare_stata_runs.py: baseline-equivalence and candidate-repeatability comparator that suppresses result values.
+- stata/: Stata dependency preflight, input-contract validation, and neutral driver.
 - Case Definitions Consort.ipynb: Graphviz diagram notebook for the case-definition flow figure.
 - data_dictionary.md and data_dictionary.csv: input, derived-variable, and case-definition documentation.
 - docs/REPRODUCIBILITY.md: public, restricted downstream, and upstream reproducibility boundary.
@@ -41,7 +47,7 @@ Key files:
 - AGENTS.md: repo-specific instructions for future coding agents.
 
 Outputs:
-- Generated Stata logs, copied do-files, tables, figures, and temporary graph files are written under outputs/stata/<date>/.
+- Guarded Stata logs, manifests, copied do-files, tables, figures, and temporary graph files are written under outputs/stata/<run_id>/.
 - Generated CONSORT diagram files are written under outputs/figures/.
 - Generated outputs are local artifacts and should not be committed to the default branch.
 

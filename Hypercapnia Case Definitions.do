@@ -15,20 +15,19 @@ clear
    Default input is the ignored, local-only TriNetX file:
        data/private/full_db.dta
    Optional arguments:
-       do "Hypercapnia Case Definitions.do" "data/private" "outputs/stata"
+       do "Hypercapnia Case Definitions.do" "data/private" "outputs/stata" "<run_id>"
 */
 local input_root "data/private"
 local output_root "outputs/stata"
+local run_id
 if "`1'" != "" local input_root "`1'"
 if "`2'" != "" local output_root "`2'"
+if "`3'" != "" local run_id "`3'"
 
 local input_file "`input_root'/full_db.dta"
-capture confirm file "`input_file'"
-if _rc {
-    di as error "Required restricted input not found: `input_file'"
-    di as error "Place full_db.dta under data/private or pass input/output roots:"
-    di as error `"stata-mp -b do "Hypercapnia Case Definitions.do" "data/private" "outputs/stata""'
-    exit 601
+if "`run_id'" != "" & !regexm("`run_id'", "^[A-Za-z0-9._-]+$") {
+    di as error "Run ID contains unsafe characters."
+    exit 198
 }
 
 /* Create logging / output directories */ 
@@ -36,6 +35,7 @@ capture mkdir "outputs"
 capture mkdir "`output_root'"
 local run_date = subinstr(c(current_date), " ", "-", .)
 local outdir "`output_root'/`run_date'"
+if "`run_id'" != "" local outdir "`output_root'/`run_id'"
 local logdir "`outdir'/Logs"
 local graphdir "`outdir'/graph-temp"
 capture mkdir "`outdir'"
@@ -45,13 +45,42 @@ local a1=substr(c(current_time),1,2)
 local a2=substr(c(current_time),4,2)
 local a3=substr(c(current_time),7,2)
 local b = "Hypercapnia Case Definitions.do" // do file name
+
+log using "`logdir'/(`a1'_`a2'_`a3') hypercap_case_definitions.log", text replace
 copy "`b'" "`logdir'/(`a1'_`a2'_`a3') `b'", replace
+
+if "`run_id'" == "" {
+    capture noisily do "stata/preflight_dependencies.do" ///
+        "`outdir'/dependency_report.raw.tsv"
+    local dependency_rc = _rc
+    if `dependency_rc' {
+        di as error "Stata dependency preflight failed."
+        log close
+        exit `dependency_rc'
+    }
+}
+
+capture confirm file "`input_file'"
+if _rc {
+    di as error "Required restricted input not found: `input_file'"
+    di as error "Place full_db.dta under data/private or pass input/output roots."
+    log close
+    exit 601
+}
 
 set scheme cleanplots
 graph set window fontface "Helvetica"
-log using "`logdir'/(`a1'_`a2'_`a3') hypercap_case_definitions.log", text replace
-
 use "`input_file'", clear
+local n_loaded = _N
+
+capture noisily do "stata/validate_input.do" "data_dictionary.csv" ///
+    "`outdir'/input_validation.tsv"
+local validation_rc = _rc
+if `validation_rc' {
+    di as error "Input contract validation failed."
+    log close
+    exit `validation_rc'
+}
 
 /* -----------------------
 
@@ -254,7 +283,6 @@ label define chung_lab 1 "Chung"
 label values def10 chung_lab
 
 
-list hypercap_resp_failure paco2 vbg_co2 vbg_po2 vbg_ph niv_proc imv_proc acidemia def1 def2 def3 def4 def5 def6 def7 def8 def9 def10 in 1/200
 
 /* Ones I can't do */ 
 //Domaradzki et al: Diagnostic code for COPD or respiratory failure & VBG (they did not separate into dichotomous groups) - not actually include as not general. 
@@ -1018,3 +1046,25 @@ graph combine "`graphdir'/Loc2_Encounters_Prob_Dx_spline.gph" "`graphdir'/Loc1_E
 	ycommon ///
 	xsize(8) ysize(8)
 graph export "`outdir'/Location - Figure S3 Prob Hypercap ICD.png", name("Graph") width(3200) replace
+
+/* Aggregate-only run metrics and explicit completion marker. */
+local n_analytic = _N
+tempname metrics
+file open `metrics' using "`outdir'/run_metrics.tsv", write text replace
+file write `metrics' "rows_loaded" _tab "`n_loaded'" _n
+file write `metrics' "rows_analytic" _tab "`n_analytic'" _n
+forvalues i = 1/10 {
+    quietly count if def`i' == 1
+    file write `metrics' "def`i'_positive" _tab "`r(N)'" _n
+    quietly count if missing(def`i')
+    file write `metrics' "def`i'_missing" _tab "`r(N)'" _n
+}
+file close `metrics'
+
+tempname complete
+file open `complete' using "`outdir'/ANALYSIS_COMPLETE", write text replace
+file write `complete' "analysis_complete=true" _n
+file close `complete'
+
+di as result "HCD_ANALYSIS_COMPLETE"
+log close
