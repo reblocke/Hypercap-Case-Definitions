@@ -31,15 +31,27 @@ The first argument is the input root containing `full_db.dta`; the second argume
 Optional CONSORT notebook workflow:
 
 ```bash
-python -m pip install -r requirements.txt
-jupyter nbconvert --execute "Case Definitions Consort.ipynb"
+python3 -m pip install --require-hashes -r requirements.txt
+make diagram-smoke
 ```
 
 The notebook requires the Python `graphviz` package and the system Graphviz `dot` binary.
 
+Public data-free verification:
+
+```bash
+make check
+make diagram-smoke
+```
+
+Passing public checks does not establish that the restricted Stata analysis or
+article estimates were reproduced.
+
 ## Verification Before Publishing Changes
 
 - Run `git diff --check`.
+- Run `make check`.
+- Run `make diagram-smoke` when Python 3.11 and Graphviz are available.
 - Validate `CITATION.cff` as YAML and, when available, with `cffconvert`.
 - Confirm no hard-coded user-home paths, Windows local paths, legacy generated-output roots, root `.gph`, root `.log`, or restricted-data paths are introduced.
 - Confirm README, `llms.txt`, `CITATION.cff`, and the data dictionary agree on DOI `10.1016/j.chest.2025.08.002`, PMID `40885535`, PMCID `PMC12739763`, and the restricted TriNetX data boundary.

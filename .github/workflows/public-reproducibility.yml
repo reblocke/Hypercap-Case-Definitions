@@ -1,0 +1,40 @@
+name: Public reproducibility
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  public-checks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install system Graphviz
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes graphviz
+
+      - name: Install locked Python dependencies
+        run: python3 -m pip install --require-hashes -r requirements.txt
+
+      - name: Run public checks
+        run: make check
+
+      - name: Render diagram smoke output
+        run: make diagram-smoke
+
+      - name: Confirm tracked files are unchanged
+        run: git diff --exit-code

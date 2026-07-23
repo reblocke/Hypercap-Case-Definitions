@@ -1,0 +1,13 @@
+output_id,path_pattern,producer,format,visibility,tracked,description,notes
+run_provenance,outputs/stata/<date>/Logs/*,Stata,log/do,local_generated,false,Text log and copied do-file,Date-only run directory and replace behavior are current limitations.
+overall_cohort,outputs/stata/<date>/Overall Cohort chars.xlsx,Stata,xlsx,local_generated,false,Overall cohort descriptive table,
+definition_overlap_heatmaps,outputs/stata/<date>/Definition Overlap HeatPlot*.png,Stata,png,local_generated,false,"Relative sensitivity, kappa, raw agreement, and PABAK heatmaps.",
+testing_strategy_kappa,"outputs/stata/<date>/{ABG-only,VBG-only,ABG-VBG} Definition Overlap HeatPlot - Kappa.png",Stata,png,local_generated,false,Kappa heatmaps for blood-gas testing subsets,The ABG-only and VBG-only labeling semantics are unresolved.
+definition_summary,outputs/stata/<date>/Def<i>-Summary.xlsx,Stata,xlsx,local_generated,false,Definition-specific descriptive summary,One workbook per definition.
+workup_summary,outputs/stata/<date>/Case Definition by Workup.xlsx,Stata,xlsx,local_generated,false,Definition prevalence by blood-gas workup,
+location_summary,outputs/stata/<date>/Location by Case Definitions.xlsx,Stata,xlsx,local_generated,false,Definition prevalence by region,
+location_kappa,outputs/stata/<date>/Loc<i>-Definition Overlap HeatPlot - Kappa.png,Stata,png,local_generated,false,Region-specific kappa heatmap,One image per region.
+encounter_spline_intermediates,"outputs/stata/<date>/{Unadjusted Prob of Dx Hypercapnia Splines .png,Graphs/*_Encounters_Prob_Dx_spline.gph}",Stata,png/gph,local_generated,false,Overall and setting-specific spline intermediates,Three PNG exports currently share one replace-mode filename.
+paco2_spline,outputs/stata/<date>/Figure 2 Prob Hypercap ICD.png,Stata,png,local_generated,false,Combined diagnosis-code probability spline by PaCO2,Published figure numbering is unresolved.
+location_splines,"outputs/stata/<date>/{South,Northeast,Midwest,West,Location}*Prob Hypercap ICD*.png; outputs/stata/<date>/Graphs/Loc*_Encounters_Prob_Dx_spline.gph",Stata,png/gph,local_generated,false,Regional spline intermediates and combined figure,Published figure numbering is unresolved.
+consort_diagram,outputs/figures/consort_diagram.tiff,Notebook,tiff,local_generated,false,CONSORT-style case-definition flow diagram,Uses fixed published aggregate counts.

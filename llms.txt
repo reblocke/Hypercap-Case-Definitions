@@ -13,21 +13,30 @@ Primary article:
 Data boundary:
 - Required patient-level input is TriNetX-derived and restricted.
 - Expected local input path is data/private/full_db.dta.
+- The public repository starts with the prepared full_db.dta and does not reproduce the upstream query, export, code lists, laboratory windows, or analytic-dataset construction.
 - Do not commit raw data, derived row-level data, local workbooks, generated .dta files, logs, or outputs.
 - Use the PMC/NLM article link for accessible article text; do not copy publisher-hosted article text into repository docs.
 
 Workflow:
+- Public validation command: make check
+- Public diagram command: make diagram-smoke
+- Public Python version: 3.11
+- Install locked public dependencies with: python3 -m pip install --require-hashes -r requirements.txt
 - Main Stata command: stata-mp -b do "Hypercapnia Case Definitions.do" "data/private" "outputs/stata"
 - The first Stata argument is the directory containing full_db.dta.
 - The second Stata argument is the generated-output root.
-- Optional notebook command: jupyter nbconvert --execute "Case Definitions Consort.ipynb"
+- The make diagram-smoke target invokes nbconvert with an explicit notebook output format and the active locked environment's python3 kernelspec.
 - The notebook requires the Python graphviz package and the system Graphviz dot executable.
+- The notebook renders fixed published counts; it does not derive them from data or validate article estimates.
 
 Key files:
 - README.md: human-facing project overview, article links, run commands, license, and data restrictions.
 - Hypercapnia Case Definitions.do: Stata workflow for case-definition emulation, agreement analyses, tables, and figures.
 - Case Definitions Consort.ipynb: Graphviz diagram notebook for the case-definition flow figure.
-- data_dictionary.md and data_dictionary.csv: input, derived-variable, case-definition, and output documentation.
+- data_dictionary.md and data_dictionary.csv: input, derived-variable, and case-definition documentation.
+- docs/REPRODUCIBILITY.md: public, restricted downstream, and upstream reproducibility boundary.
+- docs/SCIENTIFIC_ALIGNMENT.md: unresolved final-article versus current-code differences.
+- metadata/: code-derived phenotype inventory, upstream dependency record, Stata dependency inventory, and output manifest.
 - CITATION.cff: structured repository and article citation metadata.
 - AGENTS.md: repo-specific instructions for future coding agents.
 
@@ -38,6 +47,8 @@ Outputs:
 
 Agent cautions:
 - Preserve analysis logic unless explicitly asked to change the scientific methods.
+- Treat phenotype metadata as a code-derived, unapproved inventory.
+- Do not convert UNRESOLVED, blocked, draft, or needs_review items to verified without source evidence and owner approval.
 - Keep path changes repo-root relative and argument-driven.
 - Maintain the data dictionary when adding or renaming variables.
 - Validate CITATION.cff after metadata edits.

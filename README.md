@@ -5,7 +5,9 @@
 [![PMC](https://img.shields.io/badge/PMC-PMC12739763-green)](https://pmc.ncbi.nlm.nih.gov/articles/PMC12739763/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Stata analysis code and a small CONSORT-style diagram notebook for the CHEST article **"The Consistency of Hypercapnic Respiratory Failure Case Definitions in Electronic Health Record Data."**
+Stata analysis code and a small CONSORT-style diagram notebook for the CHEST
+article **"The Consistency of Hypercapnic Respiratory Failure Case Definitions
+in Electronic Health Record Data."**
 
 ## Article Links
 
@@ -18,7 +20,11 @@ Stata analysis code and a small CONSORT-style diagram notebook for the CHEST art
 
 This repository supports a study asking whether common electronic-health-record case definitions for hypercapnic respiratory failure identify the same patients. The analysis emulates 10 published definitions in 2022 adult emergency-department and inpatient encounters from the TriNetX Research Network, then compares agreement, cohort characteristics, mortality, and diagnosis-code performance against laboratory-based hypercapnia measures.
 
-The repository intentionally contains code and documentation only. TriNetX-derived patient-level data are restricted and cannot be redistributed.
+The repository intentionally contains code and documentation only.
+TriNetX-derived patient-level data are restricted and cannot be redistributed.
+The public repository begins with an already-prepared `full_db.dta`; it does
+not reproduce the upstream TriNetX query, export, code-list construction,
+laboratory windowing, or analytic-dataset assembly.
 
 ## Authors, Funding, and Disclosures
 
@@ -34,7 +40,10 @@ Support listed in the article includes the American Thoracic Society ASPIRE Fell
 | --- | --- |
 | `Hypercapnia Case Definitions.do` | Main Stata workflow for cohort filtering, case-definition emulation, agreement analyses, descriptive tables, Cox models, diagnosis-code performance, and figures. |
 | `Case Definitions Consort.ipynb` | Python/Graphviz notebook for the CONSORT-style case-definition diagram. |
-| `data_dictionary.md`, `data_dictionary.csv` | Human- and machine-readable documentation for expected inputs, derived variables, case-definition flags, and outputs. |
+| `data_dictionary.md`, `data_dictionary.csv` | Human- and machine-readable documentation for expected input and derived variables. |
+| `docs/REPRODUCIBILITY.md` | Public, restricted downstream, and upstream reproducibility boundaries. |
+| `docs/SCIENTIFIC_ALIGNMENT.md` | Unresolved differences between the final article and current implementation. |
+| `metadata/` | Code-derived phenotype inventory, upstream dependency record, Stata dependency inventory, and generated-output manifest. |
 | `CITATION.cff` | Structured citation metadata for the repository and the preferred CHEST article citation. |
 | `llms.txt` | Concise machine-readable project index for search, retrieval, and future coding agents. |
 | `AGENTS.md` | Repository-specific working rules for future coding agents. |
@@ -53,6 +62,33 @@ TriNetX data must be re-requested under an investigator's institutional TriNetX 
 
 ## Workflow
 
+### Public, Data-Free Checks
+
+Use Python 3.11. Install the fully locked environment:
+
+```bash
+python3 -m pip install --require-hashes -r requirements.txt
+```
+
+Validate the public repository without Stata or restricted data:
+
+```bash
+make check
+```
+
+Render the fixed-count CONSORT-style diagram into ignored `outputs/` paths:
+
+```bash
+make diagram-smoke
+```
+
+The diagram notebook uses fixed published aggregate counts. Rendering it does
+not reproduce those counts from the restricted analysis data and does not
+validate the article's numerical results. See
+[`docs/REPRODUCIBILITY.md`](docs/REPRODUCIBILITY.md) for the complete boundary.
+
+### Restricted Stata Analysis
+
 Install the required community Stata packages before running the full workflow. Observed dependencies include `missings`, `table1_mc`, `heatplot`, `kappaetc`, `diagt`, `mkspline2`, `xblc`, `cleanplots`, and related graphics/table dependencies.
 
 Canonical Stata run from the repository root:
@@ -63,18 +99,19 @@ stata-mp -b do "Hypercapnia Case Definitions.do" "data/private" "outputs/stata"
 
 The first argument is the directory containing `full_db.dta`; the second argument is the output root. If arguments are omitted, the script defaults to `data/private` and `outputs/stata`.
 
-Optional notebook workflow:
+The exact publication-time package versions are unresolved. The code-derived
+dependency inventory is in `metadata/stata_dependencies.csv`.
 
-```bash
-python -m pip install -r requirements.txt
-jupyter nbconvert --execute "Case Definitions Consort.ipynb"
-```
-
-The notebook requires both the Python `graphviz` package and the system Graphviz `dot` executable.
+`make diagram-smoke` invokes nbconvert with an explicit notebook output format
+and selects the `python3` kernelspec from the active locked Python environment,
+rather than an unrelated user-level kernel. The notebook also requires the
+system Graphviz `dot` executable.
 
 ## Outputs
 
 Generated outputs are written under ignored `outputs/` folders and should not be committed as source files. The Stata workflow produces dated run folders containing logs, copied do-files, tables, heatmaps, spline figures, and temporary Stata graph files. The notebook writes the CONSORT diagram under `outputs/figures/`.
+
+The machine-readable inventory is `metadata/output_manifest.csv`.
 
 Key paper-facing artifacts include:
 
