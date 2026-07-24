@@ -1,7 +1,7 @@
 schema_version: 1
 upstream_repository: https://github.com/reblocke/trinetx-hypercapnia-code
-producer_commit: UNRESOLVED
-input_schema_version: UNRESOLVED
+producer_commit: 44f49748d415e92b7d50b50d86b8fdea29f6cb07
+input_schema_version: hypercapnia-full-db-v1
 expected_artifact: full_db.dta
 expected_local_path: data/private/full_db.dta
 observed_validation_checkout_commit: 1185a6bc9957a02cb24be5f1f7fa10c48d8a4c13
@@ -10,5 +10,10 @@ unit_of_observation: adult emergency-department or inpatient encounter
 access_classification: restricted
 redistributable: false
 public_repository_role: downstream_analysis_input
-verification_status: blocked
-notes: The validation checkout and artifact location are observed context only; the exact article-input producer commit, schema, and approved manifest procedure remain unresolved.
+verification_status: verified
+verification_basis: scientific_owner_approved_historical_evidence
+verification_scope: artifact_producer_and_observed_schema_only
+verification_date: 2026-07-23
+historical_clean_worktree_recorded: false
+historical_source_hashes_recorded: false
+notes: Producer assignment approved from the upstream preprocessing script, artifact timing, and Git reflog continuity. The historical build did not record clean-worktree state or source-file hashes. This public repository does not reproduce upstream construction.

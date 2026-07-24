@@ -3,6 +3,7 @@ data/
 Data/
 *.dta
 *.sas7bdat
+full_db.manifest.json
 *.csv
 *.xlsx
 *.xls

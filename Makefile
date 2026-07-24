@@ -11,12 +11,15 @@ STATA_BIN ?=
 STATA_MODE ?= auto
 RUN_ID ?=
 EXPECTED_INPUT_SHA256 ?=
+APPROVE_RESTRICTED_INPUT ?=
+REPLACE_APPROVED_INPUT ?=
 BASELINE_RUN ?=
 CANDIDATE_RUN_1 ?=
 CANDIDATE_RUN_2 ?=
 COMPARISON_REPORT ?= outputs/validation/comparison_report.json
 
 STATA_RUN_ARGS = --input-root "$(INPUT_ROOT)" --output-root "$(OUTPUT_ROOT)" --analysis-root "$(ANALYSIS_ROOT)" --stata-mode "$(STATA_MODE)"
+INPUT_APPROVE_ARGS = --input-root "$(INPUT_ROOT)" --analysis-root "$(ANALYSIS_ROOT)" --approve "$(APPROVE_RESTRICTED_INPUT)"
 ifneq ($(strip $(STATA_BIN)),)
 STATA_RUN_ARGS += --stata-bin "$(STATA_BIN)"
 endif
@@ -26,14 +29,18 @@ endif
 ifneq ($(strip $(EXPECTED_INPUT_SHA256)),)
 STATA_RUN_ARGS += --expected-input-sha256 "$(EXPECTED_INPUT_SHA256)"
 endif
+ifneq ($(strip $(REPLACE_APPROVED_INPUT)),)
+INPUT_APPROVE_ARGS += --replace "$(REPLACE_APPROVED_INPUT)"
+endif
 
-.PHONY: help check diagram-smoke stata-run stata-compare
+.PHONY: help check diagram-smoke input-approve stata-run stata-compare
 
 help:
 	@echo "Public, data-free targets:"
 	@echo "  make check          Validate metadata, safety rules, and tests"
 	@echo "  make diagram-smoke  Execute the diagram notebook into ignored outputs"
 	@echo "Restricted-data targets:"
+	@echo "  make input-approve  Approve the adjacent restricted-input manifest"
 	@echo "  make stata-run      Run guarded Stata analysis into a unique folder"
 	@echo "  make stata-compare  Compare one baseline and two candidate runs"
 
@@ -56,6 +63,9 @@ diagram-smoke:
 	test -s outputs/figures/consort_diagram.tiff
 	git diff --exit-code -- "Case Definitions Consort.ipynb"
 
+input-approve:
+	$(PYTHON) scripts/input_manifest.py approve $(INPUT_APPROVE_ARGS)
+
 stata-run:
 	PYTHON="$(PYTHON)" scripts/run_stata.sh $(STATA_RUN_ARGS)
 
@@ -68,5 +78,6 @@ stata-compare:
 		--candidate-run-1 "$(CANDIDATE_RUN_1)" \
 		--candidate-run-2 "$(CANDIDATE_RUN_2)" \
 		--input-file "$(INPUT_ROOT)/full_db.dta" \
+		--analysis-root "$(ANALYSIS_ROOT)" \
 		$(if $(strip $(EXPECTED_INPUT_SHA256)),--expected-input-sha256 "$(EXPECTED_INPUT_SHA256)",) \
 		--report "$(COMPARISON_REPORT)"

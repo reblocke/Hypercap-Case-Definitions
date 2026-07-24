@@ -16,6 +16,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
+import input_manifest
+
 ROOT = Path(__file__).resolve().parents[1]
 MAIN_DO = "Hypercapnia Case Definitions.do"
 RUN_ID_PATTERN = re.compile(r"^[A-Za-z0-9._-]+$")
@@ -57,9 +59,11 @@ HASHED_RUN_FILES = (
     Path("data_dictionary.csv"),
     Path("metadata/output_manifest.csv"),
     Path("metadata/stata_dependencies.csv"),
+    Path("metadata/upstream_dependency.yml"),
 )
 
 HASHED_HARNESS_FILES = (
+    Path("scripts/input_manifest.py"),
     Path("scripts/run_stata.sh"),
     Path("scripts/stata_run.py"),
     Path("stata/run_hypercapnia.do"),
@@ -332,15 +336,16 @@ def initial_manifest(
     run_id: str,
     commit: str,
     dirty: bool,
-    input_file: Path,
-    input_hash: str,
+    approved_input: dict[str, Any],
     mode: str,
     stata: Path,
     legacy: bool,
     code_hashes: dict[str, str],
 ) -> dict[str, Any]:
+    input_record = approved_input["input"]
+    approval = approved_input["approval"]
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "run_id": run_id,
         "status": "running",
         "started_at_utc": utc_now(),
@@ -350,9 +355,16 @@ def initial_manifest(
         "validation_eligible": not dirty,
         "legacy_two_argument_mode": legacy,
         "input": {
-            "logical_name": input_file.name,
-            "size_bytes": input_file.stat().st_size,
-            "sha256": input_hash,
+            "logical_name": input_record["logical_name"],
+            "size_bytes": input_record["size_bytes"],
+            "sha256": input_record["sha256"],
+            "approval": {
+                "manifest_sha256": approval["manifest_sha256"],
+                "upstream_repository": approval["upstream_repository"],
+                "producer_commit": approval["producer_commit"],
+                "input_schema_version": approval["input_schema_version"],
+                "data_dictionary_sha256": approval["data_dictionary_sha256"],
+            },
         },
         "stata": {
             "executable_name": stata.name,
@@ -387,6 +399,15 @@ def run(args: argparse.Namespace) -> tuple[int, Path | None]:
     analysis_root = Path(args.analysis_root).expanduser().resolve()
     input_root = Path(args.input_root).expanduser().resolve()
     output_root = Path(args.output_root).expanduser().resolve()
+    try:
+        same_checkout = analysis_root.samefile(ROOT)
+    except OSError:
+        same_checkout = False
+    if not same_checkout:
+        raise RunFailure(
+            "analysis_root_mismatch",
+            "Analysis root must be the runner's repository checkout.",
+        )
     commit, dirty = git_state(analysis_root)
     run_id = args.run_id or default_run_id(commit)
     if not RUN_ID_PATTERN.fullmatch(run_id):
@@ -401,7 +422,7 @@ def run(args: argparse.Namespace) -> tuple[int, Path | None]:
 
     manifest_path = run_dir / "run_manifest.json"
     manifest: dict[str, Any] = {
-        "schema_version": 1,
+        "schema_version": 2,
         "run_id": run_id,
         "status": "initializing",
         "started_at_utc": utc_now(),
@@ -409,17 +430,23 @@ def run(args: argparse.Namespace) -> tuple[int, Path | None]:
     atomic_json(manifest_path, manifest)
 
     try:
-        input_file = input_root / "full_db.dta"
-        if not input_file.is_file():
-            raise RunFailure("missing_input", "Required full_db.dta is unavailable.")
-        stata = resolve_stata(args.stata_bin)
-        flag, mode = stata_mode(stata, args.stata_mode)
-        input_hash = sha256_file(input_file)
+        try:
+            approved_input = input_manifest.validate_approved_input(
+                input_root,
+                analysis_root,
+            )
+        except input_manifest.InputManifestFailure as exc:
+            raise RunFailure(exc.category, str(exc)) from exc
+
+        input_hash = approved_input["input"]["sha256"]
         if (
             args.expected_input_sha256
             and input_hash.lower() != args.expected_input_sha256.lower()
         ):
             raise RunFailure("input_hash_mismatch", "Input SHA-256 did not match.")
+
+        stata = resolve_stata(args.stata_bin)
+        flag, mode = stata_mode(stata, args.stata_mode)
 
         analysis_do = analysis_root / MAIN_DO
         if not analysis_do.is_file():
@@ -429,8 +456,7 @@ def run(args: argparse.Namespace) -> tuple[int, Path | None]:
             run_id=run_id,
             commit=commit,
             dirty=dirty,
-            input_file=input_file,
-            input_hash=input_hash,
+            approved_input=approved_input,
             mode=mode,
             stata=stata,
             legacy=args.legacy_two_arg,
@@ -498,6 +524,22 @@ def run(args: argparse.Namespace) -> tuple[int, Path | None]:
         metrics_path = artifact_root / "run_metrics.tsv"
         if metrics_path.is_file():
             manifest["metrics"] = parse_key_value_tsv(metrics_path)
+
+        try:
+            final_approved_input = input_manifest.validate_approved_input(
+                input_root,
+                analysis_root,
+            )
+        except input_manifest.InputManifestFailure as exc:
+            raise RunFailure(exc.category, str(exc)) from exc
+        if (
+            final_approved_input["input"] != approved_input["input"]
+            or final_approved_input["approval"] != approved_input["approval"]
+        ):
+            raise RunFailure(
+                "input_manifest_run_drift",
+                "The approved input changed during the Stata run.",
+            )
 
         success_path = run_dir / "SUCCESS"
         success_path.write_text("status=success\n", encoding="utf-8")

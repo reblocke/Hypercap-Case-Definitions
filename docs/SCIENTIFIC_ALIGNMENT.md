@@ -17,7 +17,7 @@ Authoritative article source:
 | SA-007 | The spline figures represent diagnosis-code probability over PaCO2. | The plotting filters use the original `paco2_rounded` field after `xblc` generates prediction-grid variable `pa`; behavior may depend on row order. | UNRESOLVED | Methods owner |
 | SA-008 | The article discusses informed presence and incomplete emulation of some source criteria. | Every implemented definition ultimately converts missing defining evidence to zero, and several published exclusions/settings were intentionally not simulated. | UNRESOLVED | Scientific owner |
 | SA-009 | The article reports two-month mortality. | `died_2mo` uses `months_death_or_cens <= 1`; the upstream time encoding is not documented here. | UNRESOLVED | Data owner |
-| SA-010 | Bülbül and Meservey depend on laboratory and diagnosis-code constructs described in the article. | `def5` and `def6` copy upstream flags whose complete derivations and producer version are unavailable here. | UNRESOLVED | Data owner |
+| SA-010 | Bülbül and Meservey depend on laboratory and diagnosis-code constructs described in the article. | The approved artifact producer/schema is recorded, but `def5` and `def6` copy upstream flags whose complete derivations remain unavailable and unverified here. | UNRESOLVED | Data owner |
 | SA-011 | The final article uses Figure 3 for the PaCO2 spline and e-Figure 5 for the regional spline. | Current output names refer to Figure 2 and Figure S3. | UNRESOLVED | Scientific owner |
 
 ## Rules for Resolving an Item

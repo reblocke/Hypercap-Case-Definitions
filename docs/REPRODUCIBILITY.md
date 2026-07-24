@@ -48,8 +48,30 @@ does not calculate those counts from patient-level data or Stata outputs.
 ## Level 2: Restricted Downstream Analysis
 
 The Stata workflow starts with an analysis-ready, restricted encounter-level
-file named `full_db.dta`. With approved access to that file and licensed Stata,
-the canonical guarded command is:
+file named `full_db.dta`. The approved restricted input is bound to upstream
+producer commit `44f49748d415e92b7d50b50d86b8fdea29f6cb07` and the
+repository-defined observed schema `hypercapnia-full-db-v1`. This
+owner-approved assignment is based on historical evidence; the upstream build
+did not preserve source-file hashes or a clean-worktree attestation and is not
+reproduced here.
+
+With approved access to that file, create its adjacent local approval manifest
+once:
+
+```bash
+make input-approve \
+  INPUT_ROOT="/approved/restricted/hypercapnia" \
+  APPROVE_RESTRICTED_INPUT=YES
+```
+
+This writes ignored `full_db.manifest.json` beside `full_db.dta`. Its exact
+fields are `schema_version`, `logical_name`, `size_bytes`, `sha256`,
+`approved_at_utc`, `upstream_repository`, `producer_commit`,
+`input_schema_version`, and `data_dictionary_sha256`. It contains no local path,
+row count, or patient-level value. Replacement requires the separate explicit
+setting `REPLACE_APPROVED_INPUT=YES`.
+
+With licensed Stata, the canonical guarded command is:
 
 ```bash
 make stata-run \
@@ -60,13 +82,17 @@ make stata-run \
 
 The runner:
 
-- refuses a missing input, unsafe run identifier, or existing run directory;
+- refuses a missing or unapproved input, approval drift, unsafe run identifier,
+  or existing run directory;
 - records the analysis commit, dirty-worktree state, input and code hashes,
-  Stata environment, and dependency hashes in an ignored manifest;
+  approved producer/schema reference, Stata environment, and dependency hashes
+  in an ignored manifest;
 - preflights required community Stata dependencies;
 - validates all documented runtime inputs before analysis;
 - treats Stata's explicit status and completion artifacts—not its shell return
-  code alone—as authoritative; and
+  code alone—as authoritative;
+- revalidates the input bytes, adjacent approval, and tracked authority after
+  analysis; and
 - writes `SUCCESS` only when all 40 expected legacy artifacts are present and
   nonempty.
 
@@ -74,22 +100,21 @@ The input and output arguments may point to other approved local directories.
 Neither the restricted input, the local manifest, detailed comparison report,
 nor row-level derivatives may be committed.
 
-Direct two-argument execution remains available as a compatibility path:
-
-```bash
-stata-mp -b do "Hypercapnia Case Definitions.do" "data/private" "outputs/stata"
-```
-
-That path does not provide the runner's collision protection, complete
-provenance manifest, or output-inventory gate.
+`make stata-run` is the sole supported scientific execution interface. The
+internal legacy argument mode is retained only to interpret preserved
+historical validation evidence and must not be used to create new scientific
+runs. The runner and analysis root must resolve to the same checkout so the
+recorded commit, dirty state, harness hashes, and executed files describe one
+tree.
 
 ## Restricted Validation Protocol
 
 For a code change that is intended to preserve results:
 
 1. Use clean, isolated checkouts of the named baseline and candidate commits.
-2. Verify the restricted input hash before each run.
-3. Run the baseline once using the legacy two-argument interface.
+2. Validate the adjacent restricted-input approval before each run.
+3. Reuse the preserved legacy baseline; do not create a new scientific
+   baseline through direct do-file invocation.
 4. Run the candidate twice using different run identifiers.
 5. Compare the three isolated outputs with:
 
@@ -101,16 +126,21 @@ For a code change that is intended to preserve results:
      INPUT_ROOT="/approved/restricted/hypercapnia"
    ```
 
-Before assigning equivalence or repeatability labels, the comparator requires a
-legacy baseline, two guarded candidates, and matching nonempty candidate commit
-identifiers. It rehashes the current input and compares that hash with every run
+Before assigning equivalence or repeatability labels, the comparator validates
+the current adjacent approval, requires a legacy baseline, requires two guarded
+candidates whose approval references match that manifest, and requires matching
+nonempty candidate commit identifiers. A preserved legacy baseline may lack the
+new approval reference; if it records one, that reference must match. The
+comparator rehashes the current input and compares that hash with every run
 manifest even when no optional expected-hash pin is supplied. It then checks
 environment and input identity, dependency hashes, semantic workbook content,
 decoded PNG pixels, required nonempty Stata graph files, copied-do hashes, and
-normalized logs. It reports only discrepancy categories, locations, and
-hashes—not cell values or row-level content. Passing baseline equivalence and
-candidate repeatability are separate required conditions. A sanitized record
-of the completed HCD-000B validation is in
+normalized logs. It revalidates the input and approval immediately before
+reporting and atomically replaces any prior comparison report, so a stale pass
+cannot survive an incomplete comparison. It reports only discrepancy
+categories, locations, and hashes—not cell values or row-level content. Passing
+baseline equivalence and candidate repeatability are separate required
+conditions. A sanitized record of the completed HCD-000B validation is in
 [`VALIDATION.md`](VALIDATION.md); detailed evidence remains ignored and local.
 
 The public checks do not execute Stata and do not establish that article
@@ -128,11 +158,11 @@ This repository does not reproduce:
 - derivation of upstream flags; or
 - assembly and validation of `full_db.dta`.
 
-The upstream repository is identified in
-`metadata/upstream_dependency.yml`, but the exact producer commit and schema
-version for the article dataset remain `UNRESOLVED`. A checkout commit and
-artifact location observed during local validation are recorded only as
-context; they do not establish which commit produced the restricted file.
+The upstream repository and the owner-approved historical producer/schema
+assignment are recorded in `metadata/upstream_dependency.yml`. This assignment
+does not independently reproduce upstream construction. The historical build
+did not record source-file hashes or clean-worktree state, and complete
+variable-level derivations remain unavailable for review in this repository.
 
 ## Scientific Alignment Boundary
 

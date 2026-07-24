@@ -23,16 +23,19 @@ This public repository contains Stata analysis code and a Python/Graphviz diagra
 Canonical Stata command from the repository root:
 
 ```bash
+make input-approve INPUT_ROOT="/approved/restricted/hypercapnia" APPROVE_RESTRICTED_INPUT=YES
 make stata-run STATA_BIN="/path/to/stata" INPUT_ROOT="/approved/restricted/hypercapnia"
 ```
 
-`INPUT_ROOT` contains `full_db.dta`; `OUTPUT_ROOT` defaults to
-`outputs/stata`. The guarded runner must fail clearly for a missing input,
-dependency, unsafe or colliding run ID, failed input contract, failed Stata
-status, or incomplete legacy artifact inventory.
+`INPUT_ROOT` contains `full_db.dta` and its ignored adjacent
+`full_db.manifest.json`; `OUTPUT_ROOT` defaults to `outputs/stata`.
+`make stata-run` is the sole supported scientific execution interface. The
+guarded runner must fail clearly for a missing or unapproved input, approval
+drift, dependency, unsafe or colliding run ID, failed input contract, failed
+Stata status, or incomplete legacy artifact inventory.
 
-For equivalence validation, use clean isolated baseline and candidate checkouts,
-run the baseline once and candidate twice, then invoke:
+For equivalence validation, reuse the preserved legacy baseline and run the
+guarded candidate twice in clean isolated checkouts, then invoke:
 
 ```bash
 make stata-compare BASELINE_RUN="..." CANDIDATE_RUN_1="..." CANDIDATE_RUN_2="..." INPUT_ROOT="..."
@@ -69,6 +72,9 @@ article estimates were reproduced.
 - Validate `CITATION.cff` as YAML and, when available, with `cffconvert`.
 - Confirm no hard-coded user-home paths, Windows local paths, legacy generated-output roots, root `.gph`, root `.log`, or restricted-data paths are introduced.
 - Confirm the guarded runner is collision-safe and that `SUCCESS` cannot be written without fresh Stata status, completion, and all 40 legacy artifacts.
+- Confirm new runs cannot resolve or launch Stata without a valid adjacent input approval matching the tracked producer/schema and data dictionary.
+- Confirm the runner revalidates that approval before `SUCCESS`, the comparator revalidates it after comparisons, and filesystem aliases cannot satisfy distinct run roles.
+- Confirm the runner rejects a split runner/analysis checkout before creating a run directory.
 - Confirm comparison reports never expose workbook values or row-level log content.
 - Confirm README, `llms.txt`, `CITATION.cff`, and the data dictionary agree on DOI `10.1016/j.chest.2025.08.002`, PMID `40885535`, PMCID `PMC12739763`, and the restricted TriNetX data boundary.
 - If Stata is unavailable or the restricted data are absent, document the skipped smoke check rather than creating synthetic patient-like data.

@@ -21,6 +21,11 @@ EXPECTED_IDENTITY = {
     "repository": "https://github.com/reblocke/Hypercap-Case-Definitions",
 }
 
+APPROVED_PRODUCER_COMMIT = "44f49748d415e92b7d50b50d86b8fdea29f6cb07"
+APPROVED_INPUT_SCHEMA = "hypercapnia-full-db-v1"
+APPROVED_VERIFICATION_BASIS = "scientific_owner_approved_historical_evidence"
+APPROVED_VERIFICATION_SCOPE = "artifact_producer_and_observed_schema_only"
+
 ALLOWED_CSV_PATHS = {
     PurePosixPath("data_dictionary.csv"),
     PurePosixPath("metadata/output_manifest.csv"),
@@ -47,6 +52,9 @@ BANNED_SUFFIXES = {
 
 BANNED_TOP_LEVEL_DIRECTORIES = {"Data", "Results and Figures", "data", "outputs"}
 CONFLICT_MARKER = re.compile(r"(?m)^(?:<{7}(?: .*)?|={7}|>{7}(?: .*)?)$")
+DIRECT_STATA_COMMAND = re.compile(
+    r"(?im)^\s*(?:\S*/)?stata(?:-?mp|-?se|-?be)?\s+-[be]\s+do\b"
+)
 VALID_REVIEW_STATUSES = {"blocked", "draft", "needs_review", "verified"}
 VALID_WORKFLOW_ROLES = {"context_only", "derived_analysis", "runtime_input"}
 VALID_UPSTREAM_STATUSES = {"blocked", "needs_review", "not_applicable", "verified"}
@@ -285,6 +293,14 @@ def validate_dictionary_rows(rows: Sequence[Mapping[str, str]]) -> list[str]:
             issues.append(
                 f"data_dictionary.csv:{index}: invalid upstream_derivation_status"
             )
+        if (
+            row.get("workflow_role") in {"runtime_input", "context_only"}
+            and row.get("upstream_derivation_status") != "blocked"
+        ):
+            issues.append(
+                f"data_dictionary.csv:{index}: full_db.dta input derivation "
+                "must remain blocked"
+            )
         if row.get("review_status") not in VALID_REVIEW_STATUSES:
             issues.append(f"data_dictionary.csv:{index}: invalid review_status")
         if row.get("review_status") == "reviewed_from_code":
@@ -305,6 +321,48 @@ def _parse_flat_yaml(path: Path) -> dict[str, str]:
         key, value = line.split(":", 1)
         values[key.strip()] = value.strip()
     return values
+
+
+def validate_upstream_record(upstream: Mapping[str, str]) -> list[str]:
+    issues: list[str] = []
+    expected_upstream = {
+        "upstream_repository": (
+            "https://github.com/reblocke/trinetx-hypercapnia-code"
+        ),
+        "producer_commit": APPROVED_PRODUCER_COMMIT,
+        "input_schema_version": APPROVED_INPUT_SCHEMA,
+        "expected_artifact": "full_db.dta",
+        "observed_validation_checkout_commit": (
+            "1185a6bc9957a02cb24be5f1f7fa10c48d8a4c13"
+        ),
+        "observed_validation_artifact_path": (
+            "Data/derived/hypercapnia/preprocessing/full_db.dta"
+        ),
+        "access_classification": "restricted",
+        "redistributable": "false",
+        "verification_status": "verified",
+        "verification_basis": APPROVED_VERIFICATION_BASIS,
+        "verification_scope": APPROVED_VERIFICATION_SCOPE,
+        "verification_date": "2026-07-23",
+        "historical_clean_worktree_recorded": "false",
+        "historical_source_hashes_recorded": "false",
+    }
+    for key, expected in expected_upstream.items():
+        if upstream.get(key) != expected:
+            issues.append(f"metadata/upstream_dependency.yml: {key} must be {expected}")
+
+    notes = upstream.get("notes", "")
+    for limitation in (
+        "did not record clean-worktree state",
+        "source-file hashes",
+        "does not reproduce upstream construction",
+    ):
+        if limitation not in notes:
+            issues.append(
+                "metadata/upstream_dependency.yml: notes must preserve "
+                f"historical limitation {limitation}"
+            )
+    return issues
 
 
 def validate_metadata(root: Path = ROOT) -> list[str]:
@@ -419,25 +477,7 @@ def validate_metadata(root: Path = ROOT) -> list[str]:
     except (OSError, ValueError) as exc:
         issues.append(f"metadata/upstream_dependency.yml: {exc}")
     else:
-        expected_upstream = {
-            "producer_commit": "UNRESOLVED",
-            "input_schema_version": "UNRESOLVED",
-            "expected_artifact": "full_db.dta",
-            "observed_validation_checkout_commit": (
-                "1185a6bc9957a02cb24be5f1f7fa10c48d8a4c13"
-            ),
-            "observed_validation_artifact_path": (
-                "Data/derived/hypercapnia/preprocessing/full_db.dta"
-            ),
-            "access_classification": "restricted",
-            "redistributable": "false",
-            "verification_status": "blocked",
-        }
-        for key, expected in expected_upstream.items():
-            if upstream.get(key) != expected:
-                issues.append(
-                    f"metadata/upstream_dependency.yml: {key} must be {expected}"
-                )
+        issues.extend(validate_upstream_record(upstream))
 
     return issues
 
@@ -472,11 +512,48 @@ def validate_identity(root: Path = ROOT) -> list[str]:
         for command in (
             "make check",
             "make diagram-smoke",
+            "make input-approve",
             "make stata-run",
             "make stata-compare",
         ):
             if command not in text:
                 issues.append(f"{relative}: missing canonical command {command}")
+
+    provenance_files = (
+        "README.md",
+        "docs/REPRODUCIBILITY.md",
+        "data_dictionary.md",
+        "llms.txt",
+    )
+    for relative in provenance_files:
+        path = root / relative
+        if not path.is_file():
+            issues.append(f"{relative}: required provenance file is missing")
+            continue
+        text = path.read_text(encoding="utf-8")
+        for token in (APPROVED_PRODUCER_COMMIT, APPROVED_INPUT_SCHEMA):
+            if token not in text:
+                issues.append(f"{relative}: missing approved input token {token}")
+
+    for relative in (
+        "README.md",
+        "docs/REPRODUCIBILITY.md",
+        "llms.txt",
+        "AGENTS.md",
+    ):
+        path = root / relative
+        if not path.is_file():
+            continue
+        text = path.read_text(encoding="utf-8")
+        if DIRECT_STATA_COMMAND.search(text):
+            issues.append(
+                f"{relative}: direct Stata batch command is not a supported workflow"
+            )
+        if "sole supported scientific execution interface" not in text:
+            issues.append(
+                f"{relative}: must identify make stata-run as the sole supported "
+                "scientific execution interface"
+            )
     return issues
 
 

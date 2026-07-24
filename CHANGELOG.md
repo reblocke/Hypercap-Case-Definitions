@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Added explicit one-time approval for the adjacent restricted input, bound new
+  runs and comparisons to that manifest, and made `make stata-run` the sole
+  supported scientific execution interface.
+- Recorded the owner-approved historical producer commit and observed input
+  schema while retaining the missing upstream source-hash, clean-worktree, and
+  variable-derivation limitations.
 - Added a guarded restricted-data Stata runner with unique run identifiers,
   preflight dependency checks, data-dictionary-driven input validation,
   provenance manifests, explicit completion status, and a 40-artifact success

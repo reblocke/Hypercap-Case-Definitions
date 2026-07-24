@@ -21,7 +21,15 @@ questions that cannot be resolved without missing upstream documentation.
 
 | File | Unit of observation | Required status | Notes |
 | --- | --- | --- | --- |
-| `data/private/full_db.dta` | One adult emergency-department or inpatient encounter | Required, local only | TriNetX-derived encounter-level analytic dataset. The exact producer commit and schema are unresolved; see `metadata/upstream_dependency.yml`. |
+| `data/private/full_db.dta` | One adult emergency-department or inpatient encounter | Required, local only | TriNetX-derived encounter-level analytic dataset bound to the approved producer/schema record and an adjacent local approval manifest; see `metadata/upstream_dependency.yml`. |
+
+The approved restricted input is bound to upstream producer commit
+`44f49748d415e92b7d50b50d86b8fdea29f6cb07` and the repository-defined
+observed schema `hypercapnia-full-db-v1`. This owner-approved assignment is
+based on historical evidence; the upstream build did not preserve source-file
+hashes or a clean-worktree attestation and is not reproduced here. This
+artifact-level assignment does not verify the individual source-variable
+derivations marked `blocked` or `needs_review` in `data_dictionary.csv`.
 
 ## Source Variable Groups
 
@@ -78,4 +86,4 @@ approved by the metadata registry.
 - `metadata/stata_dependencies.csv` records directly invoked
   community-contributed commands and the graphics scheme.
 - `metadata/upstream_dependency.yml` records the restricted input boundary and
-  unresolved producer provenance.
+  the owner-approved historical producer/schema assignment and its limitations.

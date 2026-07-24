@@ -39,6 +39,7 @@ Support listed in the article includes the American Thoracic Society ASPIRE Fell
 | Path | Purpose |
 | --- | --- |
 | `Hypercapnia Case Definitions.do` | Main Stata workflow for cohort filtering, case-definition emulation, agreement analyses, descriptive tables, Cox models, diagnosis-code performance, and figures. |
+| `scripts/input_manifest.py` | One-time restricted-input approval and validation for the adjacent local manifest. |
 | `scripts/run_stata.sh`, `scripts/stata_run.py` | Guarded restricted-data runner with unique run folders, provenance capture, and artifact-completeness checks. |
 | `scripts/compare_stata_runs.py` | Value-suppressing comparator for one legacy baseline and two candidate runs. |
 | `stata/` | Dependency preflight, input-contract validation, and neutral Stata driver files. |
@@ -63,6 +64,12 @@ data/private/full_db.dta
 The dataset is one row per emergency-department or inpatient encounter and must contain first-calendar-day laboratory, diagnosis, procedure, demographic, comorbidity, location, and mortality variables described in the data dictionary. The analysis uses TriNetX calendar-day lab resolution; first-day windows follow that convention.
 
 TriNetX data must be re-requested under an investigator's institutional TriNetX agreement. Do not commit source data, derived row-level data, local exports, or other patient-level files to this repository.
+
+The approved restricted input is bound to upstream producer commit
+`44f49748d415e92b7d50b50d86b8fdea29f6cb07` and the repository-defined
+observed schema `hypercapnia-full-db-v1`. This owner-approved assignment is
+based on historical evidence; the upstream build did not preserve source-file
+hashes or a clean-worktree attestation and is not reproduced here.
 
 ## Workflow
 
@@ -98,7 +105,23 @@ The runner checks direct and transitive dependencies before loading the
 restricted input. The complete code-derived inventory is in
 `metadata/stata_dependencies.csv`.
 
-Canonical guarded run from the repository root:
+After placing the approved `full_db.dta` under `INPUT_ROOT`, create its local
+approval manifest once:
+
+```bash
+make input-approve \
+  INPUT_ROOT="/approved/restricted/hypercapnia" \
+  APPROVE_RESTRICTED_INPUT=YES
+```
+
+This writes ignored `full_db.manifest.json` adjacent to the restricted data.
+It records only `schema_version`, `logical_name`, `size_bytes`, `sha256`,
+`approved_at_utc`, `upstream_repository`, `producer_commit`,
+`input_schema_version`, and `data_dictionary_sha256`; it records no local path
+or row-level value. An existing approval is not overwritten unless
+`REPLACE_APPROVED_INPUT=YES` is also supplied.
+
+Then run the canonical guarded workflow from the repository root:
 
 ```bash
 make stata-run \
@@ -109,21 +132,19 @@ make stata-run \
 
 `INPUT_ROOT` is the directory containing `full_db.dta`. The runner creates a
 unique run directory, records hashes and the Stata environment in an ignored
-manifest, verifies the input contract, and writes `SUCCESS` only after Stata
-reports completion and all 40 legacy artifacts are present and nonempty.
-Existing run directories are never reused.
+manifest, verifies the adjacent approval and input contract before launch and
+again after analysis, and writes `SUCCESS` only after Stata reports completion
+and all 40 legacy artifacts are present and nonempty. Existing run directories
+are never reused.
 
-The Stata do-file remains directly invocable for compatibility:
+`make stata-run` is the sole supported scientific execution interface. The
+internal legacy argument mode is retained only to interpret preserved
+historical validation evidence and must not be used to create new scientific
+runs. Run the command from the intended checkout; the runner rejects an
+`ANALYSIS_ROOT` that resolves to a different checkout.
 
-```bash
-stata-mp -b do "Hypercapnia Case Definitions.do" "data/private" "outputs/stata"
-```
-
-Direct invocation uses a date-based folder and does not provide the runner's
-collision protection, provenance manifest, or completeness gate.
-
-To assess a change, run the legacy baseline once and the guarded candidate
-twice in clean, isolated checkouts, then compare them:
+To assess a change, reuse the preserved legacy baseline, run the guarded
+candidate twice in clean isolated checkouts, then compare them:
 
 ```bash
 make stata-compare \
@@ -133,14 +154,17 @@ make stata-compare \
   INPUT_ROOT="/approved/restricted/hypercapnia"
 ```
 
-Before comparing artifacts, the comparator requires a legacy baseline, two
-guarded candidates, and matching nonempty candidate commit identifiers. It
-also rehashes the current input and checks it against every run manifest even
-when the optional expected-hash pin is omitted. It then checks workbook values
-and structure, decoded PNG pixels, required Stata graph presence, normalized
-analysis logs, dependencies, input identity, and candidate repeatability. Its
-detailed report remains under ignored `outputs/`. The latest sanitized
-validation outcome is recorded in
+Before comparing artifacts, the comparator validates the current adjacent
+approval, requires a legacy baseline, requires two guarded candidates whose
+approval references match the current manifest, and requires matching nonempty
+candidate commit identifiers. It also rehashes the current input and checks it
+against every run manifest even when the optional expected-hash pin is omitted.
+It then checks workbook values and structure, decoded PNG pixels, required Stata
+graph presence, normalized analysis logs, dependencies, input identity, and
+candidate repeatability; immediately before reporting, it revalidates that the
+input and approval did not change during comparison. Its detailed report
+remains under ignored `outputs/`. The latest sanitized validation outcome is
+recorded in
 [`docs/VALIDATION.md`](docs/VALIDATION.md).
 
 The exact publication-time package versions are unresolved. The code-derived

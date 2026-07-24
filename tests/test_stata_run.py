@@ -6,11 +6,23 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import stata_run  # noqa: E402
+import input_manifest  # noqa: E402
+
+
+def write_approved_input(input_root: Path) -> dict[str, object]:
+    (input_root / "full_db.dta").write_bytes(b"not-patient-data")
+    manifest_path = input_manifest.approve_input(
+        input_root,
+        ROOT,
+        approval="YES",
+    )
+    return json.loads(manifest_path.read_text(encoding="utf-8"))
 
 
 def write_fake_stata(
@@ -18,6 +30,7 @@ def write_fake_stata(
     *,
     write_status: bool = True,
     write_guarded_controls: bool = True,
+    mutate_input: bool = False,
 ) -> None:
     xlsx = repr(list(stata_run.EXPECTED_XLSX))
     png = repr(list(stata_run.EXPECTED_PNG))
@@ -34,6 +47,7 @@ run_id = clean(sys.argv[8])
 status_path = pathlib.Path(clean(sys.argv[9]))
 dependency_path = pathlib.Path(clean(sys.argv[10]))
 mode = clean(sys.argv[11])
+input_root = pathlib.Path(clean(sys.argv[6]))
 artifact_root = output_root / run_id
 artifact_root.mkdir(parents=True, exist_ok=True)
 (artifact_root / "graph-temp").mkdir(exist_ok=True)
@@ -70,6 +84,11 @@ dependency_path.write_text(
     "machine_type\\tTest\\n"
 )
 """
+    if mutate_input:
+        source += """(input_root / "full_db.dta").write_bytes(
+    b"changed-during-stata-run"
+)
+"""
     path.write_text(source, encoding="utf-8")
     path.chmod(path.stat().st_mode | stat.S_IXUSR)
 
@@ -77,6 +96,27 @@ dependency_path.write_text(
 class StataRunUnitTests(unittest.TestCase):
     def test_run_id_rejects_path_characters(self) -> None:
         self.assertIsNone(stata_run.RUN_ID_PATTERN.fullmatch("../unsafe"))
+
+    def test_analysis_root_must_match_runner_checkout_before_run_creation(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            analysis_root = base / "other-checkout"
+            output_root = base / "output"
+            analysis_root.mkdir()
+            args = stata_run.parser().parse_args(
+                [
+                    "--analysis-root",
+                    str(analysis_root),
+                    "--output-root",
+                    str(output_root),
+                ]
+            )
+            with self.assertRaises(stata_run.RunFailure) as raised:
+                stata_run.run(args)
+        self.assertEqual("analysis_root_mismatch", raised.exception.category)
+        self.assertFalse(output_root.exists())
 
     def test_inventory_reports_missing_outputs(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -94,7 +134,7 @@ class StataRunUnitTests(unittest.TestCase):
             input_root = base / "input"
             output_root = base / "output"
             input_root.mkdir()
-            (input_root / "full_db.dta").write_bytes(b"not-patient-data")
+            write_approved_input(input_root)
             fake = base / "fake-stata"
             write_fake_stata(fake, write_status=False)
             args = stata_run.parser().parse_args(
@@ -122,7 +162,15 @@ class StataRunUnitTests(unittest.TestCase):
             input_root = base / "input"
             output_root = base / "output"
             input_root.mkdir()
-            (input_root / "full_db.dta").write_bytes(b"not-patient-data")
+            approval = write_approved_input(input_root)
+            approval_manifest = input_root / "full_db.manifest.json"
+            approval_reference = {
+                "manifest_sha256": stata_run.sha256_file(approval_manifest),
+                "upstream_repository": approval["upstream_repository"],
+                "producer_commit": approval["producer_commit"],
+                "input_schema_version": approval["input_schema_version"],
+                "data_dictionary_sha256": approval["data_dictionary_sha256"],
+            }
             fake = base / "fake-stata"
             write_fake_stata(fake)
             args = stata_run.parser().parse_args(
@@ -142,10 +190,91 @@ class StataRunUnitTests(unittest.TestCase):
             manifest = json.loads(manifest_text)
             success_exists = (run_dir / "SUCCESS").is_file()
         self.assertEqual(0, code)
+        self.assertEqual(2, manifest["schema_version"])
         self.assertEqual("success", manifest["status"])
+        self.assertEqual(approval_reference, manifest["input"]["approval"])
         self.assertNotIn(str(base), manifest_text)
         self.assertNotIn("/opt/stata", manifest_text)
         self.assertTrue(success_exists)
+
+    def test_input_mutation_during_stata_prevents_success(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            input_root = base / "input"
+            output_root = base / "output"
+            input_root.mkdir()
+            write_approved_input(input_root)
+            fake = base / "fake-stata"
+            write_fake_stata(fake, mutate_input=True)
+            args = stata_run.parser().parse_args(
+                [
+                    "--input-root",
+                    str(input_root),
+                    "--output-root",
+                    str(output_root),
+                    "--stata-bin",
+                    str(fake),
+                    "--run-id",
+                    "mutated-input",
+                ]
+            )
+            code, run_dir = stata_run.run(args)
+            manifest = json.loads((run_dir / "run_manifest.json").read_text())
+            success_exists = (run_dir / "SUCCESS").exists()
+        self.assertEqual(1, code)
+        self.assertEqual(
+            "input_manifest_input_mismatch",
+            manifest["failure_category"],
+        )
+        self.assertFalse(success_exists)
+
+    def test_reapproved_input_during_stata_is_detected_as_run_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            input_root = base / "input"
+            output_root = base / "output"
+            input_root.mkdir()
+            write_approved_input(input_root)
+            initial_approval = input_manifest.validate_approved_input(
+                input_root,
+                ROOT,
+            )
+            replacement_approval = {
+                "input_file": initial_approval["input_file"],
+                "input": {
+                    **initial_approval["input"],
+                    "sha256": "f" * 64,
+                },
+                "approval": {
+                    **initial_approval["approval"],
+                    "manifest_sha256": "e" * 64,
+                },
+            }
+            fake = base / "fake-stata"
+            write_fake_stata(fake)
+            args = stata_run.parser().parse_args(
+                [
+                    "--input-root",
+                    str(input_root),
+                    "--output-root",
+                    str(output_root),
+                    "--stata-bin",
+                    str(fake),
+                    "--run-id",
+                    "reapproved-input",
+                ]
+            )
+            with mock.patch.object(
+                stata_run.input_manifest,
+                "validate_approved_input",
+                side_effect=[initial_approval, replacement_approval],
+            ):
+                code, run_dir = stata_run.run(args)
+            manifest = json.loads((run_dir / "run_manifest.json").read_text())
+            success_exists = (run_dir / "SUCCESS").exists()
+        self.assertEqual(1, code)
+        self.assertEqual("input_manifest_run_drift", manifest["failure_category"])
+        self.assertFalse(success_exists)
 
     def test_success_is_removed_when_control_artifacts_are_incomplete(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -153,7 +282,7 @@ class StataRunUnitTests(unittest.TestCase):
             input_root = base / "input"
             output_root = base / "output"
             input_root.mkdir()
-            (input_root / "full_db.dta").write_bytes(b"not-patient-data")
+            write_approved_input(input_root)
             fake = base / "fake-stata"
             write_fake_stata(fake, write_guarded_controls=False)
             args = stata_run.parser().parse_args(
@@ -174,6 +303,73 @@ class StataRunUnitTests(unittest.TestCase):
         self.assertEqual(1, code)
         self.assertEqual("incomplete_artifacts", manifest["failure_category"])
         self.assertFalse(success_exists)
+
+    def test_missing_approval_fails_before_stata_resolution_in_all_modes(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            input_root = base / "input"
+            output_root = base / "output"
+            input_root.mkdir()
+            (input_root / "full_db.dta").write_bytes(b"not-patient-data")
+            for run_id, extra_args in (
+                ("missing-approval", []),
+                ("missing-approval-legacy", ["--legacy-two-arg"]),
+            ):
+                with self.subTest(run_id=run_id):
+                    args = stata_run.parser().parse_args(
+                        [
+                            "--input-root",
+                            str(input_root),
+                            "--output-root",
+                            str(output_root),
+                            "--run-id",
+                            run_id,
+                            *extra_args,
+                        ]
+                    )
+                    with mock.patch.object(
+                        stata_run,
+                        "resolve_stata",
+                    ) as resolve_stata:
+                        code, run_dir = stata_run.run(args)
+                    manifest_text = (run_dir / "run_manifest.json").read_text()
+                    manifest = json.loads(manifest_text)
+                    self.assertEqual(1, code)
+                    self.assertEqual(
+                        "input_manifest_missing",
+                        manifest["failure_category"],
+                    )
+                    self.assertNotIn(str(base), manifest_text)
+                    resolve_stata.assert_not_called()
+
+    def test_malformed_approval_fails_before_stata_resolution(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            input_root = base / "input"
+            output_root = base / "output"
+            input_root.mkdir()
+            (input_root / "full_db.dta").write_bytes(b"not-patient-data")
+            (input_root / "full_db.manifest.json").write_text("{not-json\n")
+            args = stata_run.parser().parse_args(
+                [
+                    "--input-root",
+                    str(input_root),
+                    "--output-root",
+                    str(output_root),
+                    "--run-id",
+                    "malformed-approval",
+                ]
+            )
+            with mock.patch.object(stata_run, "resolve_stata") as resolve_stata:
+                code, run_dir = stata_run.run(args)
+            manifest_text = (run_dir / "run_manifest.json").read_text()
+            manifest = json.loads(manifest_text)
+        self.assertEqual(1, code)
+        self.assertEqual("input_manifest_malformed", manifest["failure_category"])
+        self.assertNotIn(str(base), manifest_text)
+        resolve_stata.assert_not_called()
 
     def test_existing_run_directory_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

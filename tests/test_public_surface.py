@@ -12,6 +12,50 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import check_public_surface as audit  # noqa: E402
 
 
+def valid_upstream_record() -> dict[str, str]:
+    return {
+        "upstream_repository": (
+            "https://github.com/reblocke/trinetx-hypercapnia-code"
+        ),
+        "producer_commit": audit.APPROVED_PRODUCER_COMMIT,
+        "input_schema_version": audit.APPROVED_INPUT_SCHEMA,
+        "expected_artifact": "full_db.dta",
+        "observed_validation_checkout_commit": (
+            "1185a6bc9957a02cb24be5f1f7fa10c48d8a4c13"
+        ),
+        "observed_validation_artifact_path": (
+            "Data/derived/hypercapnia/preprocessing/full_db.dta"
+        ),
+        "access_classification": "restricted",
+        "redistributable": "false",
+        "verification_status": "verified",
+        "verification_basis": audit.APPROVED_VERIFICATION_BASIS,
+        "verification_scope": audit.APPROVED_VERIFICATION_SCOPE,
+        "verification_date": "2026-07-23",
+        "historical_clean_worktree_recorded": "false",
+        "historical_source_hashes_recorded": "false",
+        "notes": (
+            "The historical build did not record clean-worktree state or "
+            "source-file hashes. This public repository does not reproduce "
+            "upstream construction."
+        ),
+    }
+
+
+def copy_identity_surface(destination: Path) -> None:
+    for relative in (
+        "README.md",
+        "llms.txt",
+        "CITATION.cff",
+        "AGENTS.md",
+        "data_dictionary.md",
+        "docs/REPRODUCIBILITY.md",
+    ):
+        target = destination / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text((ROOT / relative).read_text(encoding="utf-8"), encoding="utf-8")
+
+
 class PublicSurfaceUnitTests(unittest.TestCase):
     def test_conflict_marker_is_detected(self) -> None:
         marker = "<" * 7 + " ours\ncontent\n" + "=" * 7 + "\n"
@@ -128,6 +172,80 @@ class PublicSurfaceUnitTests(unittest.TestCase):
             issues = audit.validate_identity(root)
         self.assertTrue(any("canonical identity token" in issue for issue in issues))
 
+    def test_upstream_producer_schema_and_verification_are_enforced(self) -> None:
+        mutations = {
+            "producer_commit": "0" * 40,
+            "input_schema_version": "different-schema",
+            "verification_status": "blocked",
+            "verification_basis": "unsupported_basis",
+            "verification_scope": "overly_broad",
+        }
+        for field, replacement in mutations.items():
+            with self.subTest(field=field):
+                record = valid_upstream_record()
+                record[field] = replacement
+                issues = audit.validate_upstream_record(record)
+                self.assertTrue(
+                    any(field in issue for issue in issues),
+                    "\n".join(issues),
+                )
+
+    def test_upstream_historical_limitations_are_enforced(self) -> None:
+        for omitted in (
+            "did not record clean-worktree state",
+            "source-file hashes",
+            "does not reproduce upstream construction",
+        ):
+            with self.subTest(omitted=omitted):
+                record = valid_upstream_record()
+                record["notes"] = record["notes"].replace(omitted, "omitted")
+                issues = audit.validate_upstream_record(record)
+                self.assertTrue(
+                    any(omitted in issue for issue in issues),
+                    "\n".join(issues),
+                )
+
+    def test_direct_stata_batch_invocation_is_detected(self) -> None:
+        for relative in ("README.md", "AGENTS.md"):
+            with self.subTest(relative=relative), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                copy_identity_surface(root)
+                document = root / relative
+                document.write_text(
+                    document.read_text(encoding="utf-8")
+                    + '\nstata-mp -b do "Hypercapnia Case Definitions.do"\n',
+                    encoding="utf-8",
+                )
+                issues = audit.validate_identity(root)
+                self.assertTrue(
+                    any(
+                        issue.startswith(f"{relative}: direct Stata batch command")
+                        for issue in issues
+                    ),
+                    "\n".join(issues),
+                )
+
+    def test_provenance_tokens_are_required_in_public_docs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            copy_identity_surface(root)
+            reproducibility = root / "docs/REPRODUCIBILITY.md"
+            reproducibility.write_text(
+                reproducibility.read_text(encoding="utf-8").replace(
+                    audit.APPROVED_INPUT_SCHEMA,
+                    "removed-schema-token",
+                ),
+                encoding="utf-8",
+            )
+            issues = audit.validate_identity(root)
+        self.assertTrue(
+            any(
+                "docs/REPRODUCIBILITY.md: missing approved input token" in issue
+                for issue in issues
+            ),
+            "\n".join(issues),
+        )
+
     def test_dictionary_output_row_is_detected(self) -> None:
         fieldnames = [
             "variable_name",
@@ -154,6 +272,20 @@ class PublicSurfaceUnitTests(unittest.TestCase):
                 rows = list(csv.DictReader(handle))
         issues = audit.validate_dictionary_rows(rows)
         self.assertTrue(any("output artifact" in issue for issue in issues))
+
+    def test_full_db_input_derivation_cannot_be_silently_verified(self) -> None:
+        with (ROOT / "data_dictionary.csv").open(
+            newline="",
+            encoding="utf-8",
+        ) as handle:
+            rows = list(csv.DictReader(handle))
+        target = next(row for row in rows if row["workflow_role"] == "runtime_input")
+        target["upstream_derivation_status"] = "verified"
+        issues = audit.validate_dictionary_rows(rows)
+        self.assertTrue(
+            any("input derivation must remain blocked" in issue for issue in issues),
+            "\n".join(issues),
+        )
 
 
 class RepositoryContractTests(unittest.TestCase):

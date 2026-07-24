@@ -8,18 +8,23 @@ import hashlib
 import json
 import math
 import numbers
+import os
 import re
 import sys
+import tempfile
+import zipfile
 from pathlib import Path
 from typing import Any, Iterable
 
 from openpyxl import load_workbook
 from PIL import Image
 
+import input_manifest
 import stata_run
 
 ABS_TOL = 1e-12
 REL_TOL = 1e-12
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def digest_text(text: str) -> str:
@@ -399,7 +404,20 @@ def validate_run_set(
     manifests: dict[str, dict[str, Any]],
 ) -> list[dict[str, str]]:
     failures: list[dict[str, str]] = []
-    if len(set(runs.values())) != len(runs):
+    run_paths = list(runs.values())
+    duplicate_run = len(set(run_paths)) != len(run_paths)
+    if not duplicate_run:
+        for index, left in enumerate(run_paths):
+            for right in run_paths[index + 1 :]:
+                try:
+                    if left.samefile(right):
+                        duplicate_run = True
+                        break
+                except OSError:
+                    continue
+            if duplicate_run:
+                break
+    if duplicate_run:
         failures.append({"category": "run_isolation", "role": "run_set"})
 
     expected_legacy_modes = {
@@ -449,12 +467,87 @@ def validate_post_run_input(
     return failures
 
 
+def validate_run_input_manifest_references(
+    manifests: dict[str, dict[str, Any]],
+    current_approval: dict[str, Any],
+) -> list[dict[str, str]]:
+    failures: list[dict[str, str]] = []
+    for role in ("candidate_1", "candidate_2"):
+        input_record = manifests[role].get("input", {})
+        if (
+            not isinstance(input_record, dict)
+            or "approval" not in input_record
+            or input_record["approval"] != current_approval
+        ):
+            failures.append(
+                {"category": "run_input_manifest_reference", "role": role}
+            )
+
+    baseline_input = manifests["baseline"].get("input", {})
+    if (
+        isinstance(baseline_input, dict)
+        and "approval" in baseline_input
+        and baseline_input["approval"] != current_approval
+    ):
+        failures.append(
+            {"category": "run_input_manifest_reference", "role": "baseline"}
+        )
+    return failures
+
+
+def write_report(
+    report_path: Path,
+    *,
+    observed_input_hash: str | None,
+    comparisons: list[dict[str, Any]],
+    failures: list[dict[str, Any]],
+    announce: bool = True,
+) -> dict[str, Any]:
+    report = {
+        "schema_version": 2,
+        "status": "pass"
+        if not failures and all(item["status"] == "pass" for item in comparisons)
+        else "fail",
+        "input_sha256_after_runs": observed_input_hash,
+        "comparisons": comparisons,
+        "failures": failures,
+    }
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=report_path.parent,
+            prefix=f".{report_path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as handle:
+            temporary_path = Path(handle.name)
+            json.dump(report, handle, indent=2, sort_keys=True)
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary_path, report_path)
+    except OSError:
+        if temporary_path is not None:
+            try:
+                temporary_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+        raise
+    if announce:
+        print(f"Stata run comparison: {report['status'].upper()}")
+    return report
+
+
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(description=__doc__)
     result.add_argument("--baseline-run", required=True)
     result.add_argument("--candidate-run-1", required=True)
     result.add_argument("--candidate-run-2", required=True)
     result.add_argument("--input-file", required=True)
+    result.add_argument("--analysis-root", default=str(ROOT))
     result.add_argument("--expected-input-sha256")
     result.add_argument("--report", required=True)
     return result
@@ -462,6 +555,15 @@ def parser() -> argparse.ArgumentParser:
 
 def main(argv: Iterable[str] | None = None) -> int:
     args = parser().parse_args(argv)
+    report_path = Path(args.report)
+    write_report(
+        report_path,
+        observed_input_hash=None,
+        comparisons=[],
+        failures=[{"category": "comparison_incomplete", "role": "run_set"}],
+        announce=False,
+    )
+
     baseline = Path(args.baseline_run).resolve()
     candidate_one = Path(args.candidate_run_1).resolve()
     candidate_two = Path(args.candidate_run_2).resolve()
@@ -470,10 +572,65 @@ def main(argv: Iterable[str] | None = None) -> int:
         "candidate_1": candidate_one,
         "candidate_2": candidate_two,
     }
-    manifests = {role: load_run(path)[0] for role, path in runs.items()}
-    failures: list[dict[str, Any]] = validate_run_set(runs, manifests)
+    input_file = Path(args.input_file)
+    analysis_root = Path(args.analysis_root).resolve()
+    if input_file.name != input_manifest.INPUT_FILENAME:
+        report = write_report(
+            report_path,
+            observed_input_hash=None,
+            comparisons=[],
+            failures=[
+                {
+                    "category": "input_manifest_malformed",
+                    "role": "current_input",
+                }
+            ],
+        )
+        return 0 if report["status"] == "pass" else 1
 
-    observed_input_hash = stata_run.sha256_file(Path(args.input_file))
+    try:
+        current_input = input_manifest.validate_approved_input(
+            input_file.parent,
+            analysis_root,
+        )
+    except input_manifest.InputManifestFailure as error:
+        report = write_report(
+            report_path,
+            observed_input_hash=None,
+            comparisons=[],
+            failures=[
+                {
+                    "category": error.category,
+                    "role": "current_input",
+                }
+            ],
+        )
+        return 0 if report["status"] == "pass" else 1
+
+    try:
+        manifests = {role: load_run(path)[0] for role, path in runs.items()}
+        failures: list[dict[str, Any]] = validate_run_set(runs, manifests)
+        failures.extend(
+            validate_run_input_manifest_references(
+                manifests,
+                current_input["approval"],
+            )
+        )
+    except (AttributeError, KeyError, OSError, TypeError, ValueError):
+        report = write_report(
+            report_path,
+            observed_input_hash=current_input["input"]["sha256"],
+            comparisons=[],
+            failures=[
+                {
+                    "category": "run_manifest_unavailable",
+                    "role": "run_set",
+                }
+            ],
+        )
+        return 0 if report["status"] == "pass" else 1
+
+    observed_input_hash = current_input["input"]["sha256"]
     failures.extend(
         validate_post_run_input(
             observed_input_hash,
@@ -484,27 +641,51 @@ def main(argv: Iterable[str] | None = None) -> int:
 
     comparisons = []
     if not failures:
-        comparisons = [
-            compare_pair(baseline, candidate_one, "baseline_vs_candidate_1"),
-            compare_pair(candidate_one, candidate_two, "candidate_repeatability"),
-        ]
+        try:
+            comparisons = [
+                compare_pair(baseline, candidate_one, "baseline_vs_candidate_1"),
+                compare_pair(
+                    candidate_one,
+                    candidate_two,
+                    "candidate_repeatability",
+                ),
+            ]
+        except (
+            AttributeError,
+            KeyError,
+            OSError,
+            TypeError,
+            ValueError,
+            zipfile.BadZipFile,
+        ):
+            comparisons = []
+            failures.append({"category": "comparison_error", "role": "run_set"})
 
-    report = {
-        "schema_version": 1,
-        "status": "pass"
-        if not failures and all(item["status"] == "pass" for item in comparisons)
-        else "fail",
-        "input_sha256_after_runs": observed_input_hash,
-        "comparisons": comparisons,
-        "failures": failures,
-    }
-    report_path = Path(args.report)
-    report_path.parent.mkdir(parents=True, exist_ok=True)
-    report_path.write_text(
-        json.dumps(report, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
+    try:
+        final_input = input_manifest.validate_approved_input(
+            input_file.parent,
+            analysis_root,
+        )
+    except input_manifest.InputManifestFailure as error:
+        failures.append({"category": error.category, "role": "current_input"})
+    else:
+        if (
+            final_input["input"] != current_input["input"]
+            or final_input["approval"] != current_input["approval"]
+        ):
+            failures.append(
+                {
+                    "category": "input_manifest_comparison_drift",
+                    "role": "current_input",
+                }
+            )
+
+    report = write_report(
+        report_path,
+        observed_input_hash=observed_input_hash,
+        comparisons=comparisons,
+        failures=failures,
     )
-    print(f"Stata run comparison: {report['status'].upper()}")
     return 0 if report["status"] == "pass" else 1
 
 

@@ -16,8 +16,12 @@ The validated analysis commits were:
   `17ffcf9c16ff11254717fe0d8b234bfa9b79a7c1`.
 
 The restricted artifact was observed in upstream checkout
-`1185a6bc9957a02cb24be5f1f7fa10c48d8a4c13`. That checkout is context only:
-the exact commit that produced the article input remains `UNRESOLVED`.
+`1185a6bc9957a02cb24be5f1f7fa10c48d8a4c13`. Subsequent owner adjudication
+bound the approved restricted input to producer commit
+`44f49748d415e92b7d50b50d86b8fdea29f6cb07` and observed schema
+`hypercapnia-full-db-v1`. This historical assignment did not independently
+rebuild the upstream dataset; source-file hashes and clean-worktree state were
+not preserved.
 
 ## Environment
 

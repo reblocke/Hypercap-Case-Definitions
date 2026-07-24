@@ -18,6 +18,14 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 import compare_stata_runs as compare  # noqa: E402
 
+APPROVAL_REFERENCE = {
+    "manifest_sha256": "1" * 64,
+    "upstream_repository": "reblocke/trinetx-hypercapnia-code",
+    "producer_commit": "2" * 40,
+    "input_schema_version": "hypercapnia-full-db-v1",
+    "data_dictionary_sha256": "3" * 64,
+}
+
 
 def save_workbook(path: Path, value: object) -> None:
     workbook = Workbook()
@@ -35,14 +43,21 @@ def write_run_manifest(
     legacy: bool,
     commit: str,
     input_sha256: str,
+    approval: dict[str, str] | None = None,
+    include_approval: bool = True,
 ) -> None:
     path.mkdir()
+    input_record: dict[str, object] = {"sha256": input_sha256}
+    if include_approval:
+        input_record["approval"] = (
+            approval if approval is not None else APPROVAL_REFERENCE
+        )
     (path / "run_manifest.json").write_text(
         json.dumps(
             {
                 "legacy_two_argument_mode": legacy,
                 "analysis_commit": commit,
-                "input": {"sha256": input_sha256},
+                "input": input_record,
             }
         ),
         encoding="utf-8",
@@ -57,6 +72,34 @@ def passing_comparison(
     return {"comparison": label, "status": "pass", "failures": []}
 
 
+def write_approved_input_fixture(root: Path) -> tuple[Path, Path, dict[str, object]]:
+    analysis_root = root / "analysis"
+    metadata_root = analysis_root / "metadata"
+    input_root = root / "input"
+    metadata_root.mkdir(parents=True)
+    input_root.mkdir()
+    (metadata_root / "upstream_dependency.yml").write_text(
+        (ROOT / "metadata/upstream_dependency.yml").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    (analysis_root / "data_dictionary.csv").write_text(
+        (ROOT / "data_dictionary.csv").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    input_file = input_root / "full_db.dta"
+    input_file.write_bytes(b"current input")
+    compare.input_manifest.approve_input(
+        input_root,
+        analysis_root,
+        approval="YES",
+    )
+    approved = compare.input_manifest.validate_approved_input(
+        input_root,
+        analysis_root,
+    )
+    return input_file, analysis_root, approved
+
+
 def run_stubbed_comparator(
     root: Path,
     *,
@@ -65,6 +108,9 @@ def run_stubbed_comparator(
     input_sha256: str | None = None,
     input_hash_overrides: dict[str, str] | None = None,
     input_file: Path | None = None,
+    current_approval: dict[str, str] | None = None,
+    approval_overrides: dict[str, dict[str, str]] | None = None,
+    omit_approval_roles: set[str] | None = None,
 ) -> tuple[int, dict[str, object], int]:
     roles = ("baseline", "candidate_1", "candidate_2")
     if input_file is None:
@@ -87,6 +133,10 @@ def run_stubbed_comparator(
     commits.update(commit_overrides or {})
     input_hashes = {role: input_sha256 for role in roles}
     input_hashes.update(input_hash_overrides or {})
+    current_approval = current_approval or APPROVAL_REFERENCE
+    approvals = {role: current_approval for role in roles}
+    approvals.update(approval_overrides or {})
+    omit_approval_roles = omit_approval_roles or set()
 
     runs = {role: root / role for role in roles}
     for role, path in runs.items():
@@ -95,6 +145,8 @@ def run_stubbed_comparator(
             legacy=legacy_modes[role],
             commit=commits[role],
             input_sha256=input_hashes[role],
+            approval=approvals[role],
+            include_approval=role not in omit_approval_roles,
         )
 
     report_path = root / "comparison.json"
@@ -110,11 +162,26 @@ def run_stubbed_comparator(
         "--input-file",
         str(input_file),
     ]
-    with patch.object(
-        compare,
-        "compare_pair",
-        side_effect=passing_comparison,
-    ) as compare_pair:
+    with (
+        patch.object(
+            compare.input_manifest,
+            "validate_approved_input",
+            return_value={
+                "input_file": input_file,
+                "input": {
+                    "logical_name": "full_db.dta",
+                    "size_bytes": input_file.stat().st_size,
+                    "sha256": input_sha256,
+                },
+                "approval": current_approval,
+            },
+        ),
+        patch.object(
+            compare,
+            "compare_pair",
+            side_effect=passing_comparison,
+        ) as compare_pair,
+    ):
         status = compare.main(arguments)
     report = json.loads(report_path.read_text(encoding="utf-8"))
     return status, report, compare_pair.call_count
@@ -361,6 +428,302 @@ class ComparatorUnitTests(unittest.TestCase):
             self.assertEqual(2, raised.exception.code)
             self.assertFalse(report_path.exists())
 
+    def test_wrong_input_filename_writes_safe_failure_report(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            report_path = root / "comparison.json"
+            restricted_name = root / "private-patient-export.dta"
+            with patch.object(
+                compare.input_manifest,
+                "validate_approved_input",
+            ) as validate:
+                status = compare.main(
+                    [
+                        "--baseline-run",
+                        str(root / "baseline"),
+                        "--candidate-run-1",
+                        str(root / "candidate-1"),
+                        "--candidate-run-2",
+                        str(root / "candidate-2"),
+                        "--input-file",
+                        str(restricted_name),
+                        "--report",
+                        str(report_path),
+                    ]
+                )
+            report_text = report_path.read_text(encoding="utf-8")
+            report = json.loads(report_text)
+            self.assertEqual(1, status)
+            self.assertEqual(2, report["schema_version"])
+            self.assertEqual("fail", report["status"])
+            self.assertEqual([], report["comparisons"])
+            self.assertEqual(
+                [
+                    {
+                        "category": "input_manifest_malformed",
+                        "role": "current_input",
+                    }
+                ],
+                report["failures"],
+            )
+            self.assertNotIn(str(restricted_name), report_text)
+            self.assertNotIn("private-patient-export", report_text)
+            validate.assert_not_called()
+
+    def test_current_input_manifest_failures_write_safe_reports(self) -> None:
+        categories = (
+            "missing_input",
+            "input_manifest_missing",
+            "input_manifest_malformed",
+            "input_manifest_unapproved",
+            "input_manifest_input_mismatch",
+            "input_manifest_provenance_mismatch",
+            "input_manifest_contract_mismatch",
+        )
+        for category in categories:
+            with self.subTest(category=category), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                input_file = root / "full_db.dta"
+                report_path = root / "comparison.json"
+                analysis_root = root / "repository-authority"
+                secret = f"restricted path {root}/patient-value-123"
+                failure = compare.input_manifest.InputManifestFailure(
+                    category,
+                    secret,
+                )
+                with patch.object(
+                    compare.input_manifest,
+                    "validate_approved_input",
+                    side_effect=failure,
+                ) as validate:
+                    status = compare.main(
+                        [
+                            "--baseline-run",
+                            str(root / "baseline"),
+                            "--candidate-run-1",
+                            str(root / "candidate-1"),
+                            "--candidate-run-2",
+                            str(root / "candidate-2"),
+                            "--input-file",
+                            str(input_file),
+                            "--analysis-root",
+                            str(analysis_root),
+                            "--report",
+                            str(report_path),
+                        ]
+                    )
+                report_text = report_path.read_text(encoding="utf-8")
+                report = json.loads(report_text)
+                self.assertEqual(1, status)
+                self.assertEqual(2, report["schema_version"])
+                self.assertEqual("fail", report["status"])
+                self.assertIsNone(report["input_sha256_after_runs"])
+                self.assertEqual([], report["comparisons"])
+                self.assertEqual(
+                    [{"category": category, "role": "current_input"}],
+                    report["failures"],
+                )
+                self.assertNotIn(secret, report_text)
+                self.assertNotIn(str(root), report_text)
+                self.assertNotIn("patient-value-123", report_text)
+                validate.assert_called_once_with(
+                    root,
+                    analysis_root.resolve(),
+                )
+
+    def test_stale_pass_report_is_invalidated_before_run_loading(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            report_path = root / "comparison.json"
+            report_path.write_text(
+                '{"status":"pass","stale_secret":"must-disappear"}\n',
+                encoding="utf-8",
+            )
+            input_file = root / "full_db.dta"
+            current_input = {
+                "input_file": input_file,
+                "input": {
+                    "logical_name": "full_db.dta",
+                    "size_bytes": 0,
+                    "sha256": "a" * 64,
+                },
+                "approval": APPROVAL_REFERENCE,
+            }
+            with patch.object(
+                compare.input_manifest,
+                "validate_approved_input",
+                return_value=current_input,
+            ):
+                status = compare.main(
+                    [
+                        "--baseline-run",
+                        str(root / "missing-baseline"),
+                        "--candidate-run-1",
+                        str(root / "missing-candidate-1"),
+                        "--candidate-run-2",
+                        str(root / "missing-candidate-2"),
+                        "--input-file",
+                        str(input_file),
+                        "--report",
+                        str(report_path),
+                    ]
+                )
+            report_text = report_path.read_text(encoding="utf-8")
+            report = json.loads(report_text)
+            temporary_reports = list(root.glob(".comparison.json.*.tmp"))
+        self.assertEqual(1, status)
+        self.assertEqual("fail", report["status"])
+        self.assertEqual(
+            [{"category": "run_manifest_unavailable", "role": "run_set"}],
+            report["failures"],
+        )
+        self.assertNotIn("stale_secret", report_text)
+        self.assertEqual([], temporary_reports)
+
+    def test_input_mutation_during_comparison_prevents_pass(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            input_file, analysis_root, approved = write_approved_input_fixture(root)
+            input_hash = approved["input"]["sha256"]
+            runs = {
+                "baseline": root / "baseline",
+                "candidate_1": root / "candidate-1",
+                "candidate_2": root / "candidate-2",
+            }
+            write_run_manifest(
+                runs["baseline"],
+                legacy=True,
+                commit="baseline",
+                input_sha256=input_hash,
+                include_approval=False,
+            )
+            for role in ("candidate_1", "candidate_2"):
+                write_run_manifest(
+                    runs[role],
+                    legacy=False,
+                    commit="candidate",
+                    input_sha256=input_hash,
+                    approval=approved["approval"],
+                )
+            report_path = root / "comparison.json"
+
+            def mutate_then_pass(
+                _left: Path,
+                _right: Path,
+                label: str,
+            ) -> dict[str, object]:
+                input_file.write_bytes(b"mutated during comparison")
+                return passing_comparison(_left, _right, label)
+
+            with patch.object(
+                compare,
+                "compare_pair",
+                side_effect=mutate_then_pass,
+            ):
+                status = compare.main(
+                    [
+                        "--baseline-run",
+                        str(runs["baseline"]),
+                        "--candidate-run-1",
+                        str(runs["candidate_1"]),
+                        "--candidate-run-2",
+                        str(runs["candidate_2"]),
+                        "--input-file",
+                        str(input_file),
+                        "--analysis-root",
+                        str(analysis_root),
+                        "--report",
+                        str(report_path),
+                    ]
+                )
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+        self.assertEqual(1, status)
+        self.assertEqual("fail", report["status"])
+        self.assertIn(
+            {
+                "category": "input_manifest_input_mismatch",
+                "role": "current_input",
+            },
+            report["failures"],
+        )
+
+    def test_reapproved_input_during_comparison_is_detected_as_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            input_file, analysis_root, approved = write_approved_input_fixture(root)
+            input_hash = approved["input"]["sha256"]
+            runs = {
+                "baseline": root / "baseline",
+                "candidate_1": root / "candidate-1",
+                "candidate_2": root / "candidate-2",
+            }
+            write_run_manifest(
+                runs["baseline"],
+                legacy=True,
+                commit="baseline",
+                input_sha256=input_hash,
+                include_approval=False,
+            )
+            for role in ("candidate_1", "candidate_2"):
+                write_run_manifest(
+                    runs[role],
+                    legacy=False,
+                    commit="candidate",
+                    input_sha256=input_hash,
+                    approval=approved["approval"],
+                )
+            report_path = root / "comparison.json"
+            replacement_done = False
+
+            def reapprove_then_pass(
+                _left: Path,
+                _right: Path,
+                label: str,
+            ) -> dict[str, object]:
+                nonlocal replacement_done
+                if not replacement_done:
+                    input_file.write_bytes(b"reapproved during comparison")
+                    compare.input_manifest.approve_input(
+                        input_file.parent,
+                        analysis_root,
+                        approval="YES",
+                        replace="YES",
+                    )
+                    replacement_done = True
+                return passing_comparison(_left, _right, label)
+
+            with patch.object(
+                compare,
+                "compare_pair",
+                side_effect=reapprove_then_pass,
+            ):
+                status = compare.main(
+                    [
+                        "--baseline-run",
+                        str(runs["baseline"]),
+                        "--candidate-run-1",
+                        str(runs["candidate_1"]),
+                        "--candidate-run-2",
+                        str(runs["candidate_2"]),
+                        "--input-file",
+                        str(input_file),
+                        "--analysis-root",
+                        str(analysis_root),
+                        "--report",
+                        str(report_path),
+                    ]
+                )
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+        self.assertEqual(1, status)
+        self.assertEqual("fail", report["status"])
+        self.assertIn(
+            {
+                "category": "input_manifest_comparison_drift",
+                "role": "current_input",
+            },
+            report["failures"],
+        )
+
     def test_wrong_run_roles_prevent_pair_comparisons(self) -> None:
         cases = (
             ("baseline", False),
@@ -380,6 +743,40 @@ class ComparatorUnitTests(unittest.TestCase):
                 )
                 self.assertEqual([], report["comparisons"])
                 self.assertEqual(0, comparison_count)
+
+    def test_filesystem_aliases_fail_run_isolation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            baseline = root / "baseline"
+            candidate = root / "candidate"
+            alias = root / "candidate-alias"
+            baseline.mkdir()
+            candidate.mkdir()
+            alias.symlink_to(candidate, target_is_directory=True)
+            runs = {
+                "baseline": baseline,
+                "candidate_1": candidate,
+                "candidate_2": alias,
+            }
+            manifests = {
+                "baseline": {
+                    "legacy_two_argument_mode": True,
+                    "analysis_commit": "baseline",
+                },
+                "candidate_1": {
+                    "legacy_two_argument_mode": False,
+                    "analysis_commit": "candidate",
+                },
+                "candidate_2": {
+                    "legacy_two_argument_mode": False,
+                    "analysis_commit": "candidate",
+                },
+            }
+            failures = compare.validate_run_set(runs, manifests)
+        self.assertIn(
+            {"category": "run_isolation", "role": "run_set"},
+            failures,
+        )
 
     def test_candidate_commits_must_be_nonempty_and_match(self) -> None:
         cases = (
@@ -415,6 +812,106 @@ class ComparatorUnitTests(unittest.TestCase):
                 self.assertIn(expected_failure, report["failures"])
                 self.assertEqual([], report["comparisons"])
                 self.assertEqual(0, comparison_count)
+
+    def test_candidates_require_current_input_approval_reference(self) -> None:
+        mismatched_approval = {
+            **APPROVAL_REFERENCE,
+            "manifest_sha256": "9" * 64,
+        }
+        cases = (
+            (
+                "candidate_1_missing",
+                {"omit_approval_roles": {"candidate_1"}},
+                "candidate_1",
+            ),
+            (
+                "candidate_2_missing",
+                {"omit_approval_roles": {"candidate_2"}},
+                "candidate_2",
+            ),
+            (
+                "candidate_1_mismatch",
+                {"approval_overrides": {"candidate_1": mismatched_approval}},
+                "candidate_1",
+            ),
+            (
+                "candidate_2_mismatch",
+                {"approval_overrides": {"candidate_2": mismatched_approval}},
+                "candidate_2",
+            ),
+        )
+        for label, overrides, failed_role in cases:
+            with self.subTest(case=label), tempfile.TemporaryDirectory() as tmp:
+                status, report, comparison_count = run_stubbed_comparator(
+                    Path(tmp),
+                    **overrides,
+                )
+                self.assertEqual(1, status)
+                self.assertEqual(
+                    [
+                        {
+                            "category": "run_input_manifest_reference",
+                            "role": failed_role,
+                        }
+                    ],
+                    report["failures"],
+                )
+                self.assertEqual([], report["comparisons"])
+                self.assertEqual(0, comparison_count)
+
+    def test_legacy_baseline_may_omit_input_approval_reference(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            status, report, comparison_count = run_stubbed_comparator(
+                Path(tmp),
+                omit_approval_roles={"baseline"},
+            )
+            self.assertEqual(0, status)
+            self.assertEqual([], report["failures"])
+            self.assertEqual(2, comparison_count)
+
+    def test_present_baseline_input_approval_must_match_current(self) -> None:
+        mismatched_approval = {
+            **APPROVAL_REFERENCE,
+            "producer_commit": "8" * 40,
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            status, report, comparison_count = run_stubbed_comparator(
+                Path(tmp),
+                approval_overrides={"baseline": mismatched_approval},
+            )
+            self.assertEqual(1, status)
+            self.assertEqual(
+                [
+                    {
+                        "category": "run_input_manifest_reference",
+                        "role": "baseline",
+                    }
+                ],
+                report["failures"],
+            )
+            self.assertEqual([], report["comparisons"])
+            self.assertEqual(0, comparison_count)
+
+    def test_input_approval_failure_does_not_expose_reference_values(self) -> None:
+        secret = "restricted-producer-secret"
+        mismatched_approval = {
+            **APPROVAL_REFERENCE,
+            "producer_commit": secret,
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            status, report, comparison_count = run_stubbed_comparator(
+                root,
+                approval_overrides={"candidate_1": mismatched_approval},
+            )
+            report_text = (root / "comparison.json").read_text(encoding="utf-8")
+            self.assertEqual(1, status)
+            self.assertNotIn(secret, report_text)
+            self.assertEqual(
+                {"category", "role"},
+                set(report["failures"][0]),
+            )
+            self.assertEqual(0, comparison_count)
 
     def test_run_set_failure_details_do_not_expose_commit_values(self) -> None:
         failures = compare.validate_run_set(
@@ -456,6 +953,7 @@ class ComparatorUnitTests(unittest.TestCase):
                 input_file=input_file,
             )
             self.assertEqual(0, status)
+            self.assertEqual(2, report["schema_version"])
             self.assertEqual(
                 [
                     "baseline_vs_candidate_1",
