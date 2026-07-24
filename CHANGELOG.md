@@ -24,6 +24,9 @@
 - Required contained and distinct artifact roots, distinct candidate run IDs,
   live completion controls, and a zero Stata process return code before a
   validation run or comparison can pass.
+- Executed the exact evidence-hardening implementation twice from a clean
+  isolated checkout and confirmed zero process exits, complete live controls,
+  baseline equivalence, and independent candidate repeatability.
 - Preserved Stata contract-import failures through cleanup, separately locked
   the diagnostic-performance program, and made phenotype source locations
   executable-code checks rather than unchecked line-number annotations.

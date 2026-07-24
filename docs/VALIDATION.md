@@ -4,10 +4,10 @@
 
 This summary records the HCD-000B downstream validation completed on
 2026-07-22 Mountain Time (2026-07-23 UTC), the review-remediation validation
-completed on 2026-07-23 Mountain Time, and the approved-input validation
-completed on 2026-07-24 Mountain Time. It intentionally omits restricted input
-locations and hashes, dataset dimensions, result values, logs, and detailed
-comparison evidence.
+completed on 2026-07-23 Mountain Time, and the approved-input and
+evidence-hardening validations completed on 2026-07-24 Mountain Time. It
+intentionally omits restricted input locations and hashes, dataset dimensions,
+result values, logs, and detailed comparison evidence.
 
 The validated analysis commits were:
 
@@ -16,7 +16,9 @@ The validated analysis commits were:
 - review-remediation candidate:
   `17ffcf9c16ff11254717fe0d8b234bfa9b79a7c1`;
 - approved-input candidate:
-  `85076dc76c4de246c7f390c71d91ce54e8a16750`.
+  `85076dc76c4de246c7f390c71d91ce54e8a16750`;
+- evidence-hardening candidate:
+  `ccbea198694b2e6c97c1e233686883c7f6742feb`.
 
 The restricted artifact was observed in upstream checkout
 `1185a6bc9957a02cb24be5f1f7fa10c48d8a4c13`. Subsequent owner adjudication
@@ -49,6 +51,8 @@ hashes and observed version headers remain in ignored run manifests.
 | Two clean review-remediation candidate executions and complete output gates | Pass |
 | Adjacent input approval before and after each new run | Pass |
 | Two clean approved-input candidate executions and complete output gates | Pass |
+| Two clean evidence-hardening candidate executions and zero process exits | Pass |
+| Live artifact-root, run-ID, and completion-control comparison gates | Pass |
 | Input identity before, across, and after the three runs | Pass |
 | Baseline versus candidate semantic workbook comparison | Pass |
 | Baseline versus candidate decoded PNG-pixel comparison | Pass |
@@ -112,6 +116,24 @@ baseline without a newer approval reference, and confirmed:
 The comparison report contained no failures. Detailed manifests, hashes,
 artifacts, and comparison evidence remain ignored and local.
 
+## Evidence-Hardening Validation
+
+The exact evidence-hardening commit
+`ccbea198694b2e6c97c1e233686883c7f6742feb` was executed twice from a clean
+isolated checkout against the same approved restricted input. The guarded runs
+used distinct run identifiers and directories. Both Stata processes exited
+zero, and both runs passed fresh Stata status, approval revalidation, all live
+completion controls, and the complete 40-artifact inventory.
+
+The strengthened schema-v2 comparator rejected neither run during its new
+precomparison gates: every artifact root was contained within its run
+directory and distinct from the other artifact roots, the candidate run
+identifiers were distinct, and the required controls remained present on disk.
+The preserved legacy baseline matched the first evidence-hardening run, the
+two evidence-hardening runs were repeatable, and the current approved input
+remained unchanged. The final comparison report contained no failures;
+detailed evidence remains ignored and local.
+
 ## Interpretation and Boundary
 
 These checks support that HCD-000B preserves the baseline downstream results
@@ -120,7 +142,10 @@ independent candidate runs are repeatable in the observed environment. The
 scientific analysis body is test-locked to HCD-000A except for removal of the
 row-level listing command. The approved-input validation additionally supports
 that the exact `85076dc` infrastructure commit enforces the recorded local
-input approval before and after execution and comparison.
+input approval before and after execution and comparison. The
+evidence-hardening validation supports that the exact `ccbea19` implementation
+also enforces zero Stata process exits, distinct run evidence, contained
+artifact roots, and live completion controls.
 
 This is not proof that the available file is the exact publication input, does
 not reproduce upstream TriNetX construction, and does not resolve the
