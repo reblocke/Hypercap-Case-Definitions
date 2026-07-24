@@ -3,8 +3,9 @@
 ## Scope
 
 This summary records the HCD-000B downstream validation completed on
-2026-07-22 Mountain Time (2026-07-23 UTC) and the review-remediation validation
-completed on 2026-07-23 Mountain Time. It intentionally omits restricted input
+2026-07-22 Mountain Time (2026-07-23 UTC), the review-remediation validation
+completed on 2026-07-23 Mountain Time, and the approved-input validation
+completed on 2026-07-24 Mountain Time. It intentionally omits restricted input
 locations and hashes, dataset dimensions, result values, logs, and detailed
 comparison evidence.
 
@@ -13,7 +14,9 @@ The validated analysis commits were:
 - legacy baseline: `3520a95663d69beeebe48ad8948300506f4f10de`;
 - initial guarded candidate: `ba7337bdb24494859e668a26383d91202eb9f76d`;
 - review-remediation candidate:
-  `17ffcf9c16ff11254717fe0d8b234bfa9b79a7c1`.
+  `17ffcf9c16ff11254717fe0d8b234bfa9b79a7c1`;
+- approved-input candidate:
+  `85076dc76c4de246c7f390c71d91ce54e8a16750`.
 
 The restricted artifact was observed in upstream checkout
 `1185a6bc9957a02cb24be5f1f7fa10c48d8a4c13`. Subsequent owner adjudication
@@ -44,6 +47,8 @@ hashes and observed version headers remain in ignored run manifests.
 | Clean candidate execution 1 and complete output gate | Pass |
 | Clean candidate execution 2 and complete output gate | Pass |
 | Two clean review-remediation candidate executions and complete output gates | Pass |
+| Adjacent input approval before and after each new run | Pass |
+| Two clean approved-input candidate executions and complete output gates | Pass |
 | Input identity before, across, and after the three runs | Pass |
 | Baseline versus candidate semantic workbook comparison | Pass |
 | Baseline versus candidate decoded PNG-pixel comparison | Pass |
@@ -84,13 +89,38 @@ manifests, the preserved legacy baseline matched the first remediation run, and
 the two remediation runs were repeatable. Detailed run and comparison evidence
 remains local and ignored.
 
+## Approved-Input Validation
+
+The exact approved-input commit
+`85076dc76c4de246c7f390c71d91ce54e8a16750` was executed twice from a clean
+isolated checkout against the same restricted input. The adjacent local
+approval was created through `make input-approve` and bound the input to the
+public producer/schema record and current data-dictionary contract without
+recording a local path or row-level value.
+
+Both schema-v2 guarded runs passed pre-launch and post-analysis approval
+validation, fresh Stata status and completion checks, and the complete
+40-artifact inventory. Their recorded approval references matched the current
+manifest. The schema-v2 comparator validated the current approval before
+loading the runs and again after comparison, accepted the preserved historical
+baseline without a newer approval reference, and confirmed:
+
+- current input identity across the baseline and both candidates;
+- baseline equivalence for the first approved-input run; and
+- candidate run-to-run repeatability.
+
+The comparison report contained no failures. Detailed manifests, hashes,
+artifacts, and comparison evidence remain ignored and local.
+
 ## Interpretation and Boundary
 
 These checks support that HCD-000B preserves the baseline downstream results
 for the restricted `full_db.dta` available during validation and that two
 independent candidate runs are repeatable in the observed environment. The
 scientific analysis body is test-locked to HCD-000A except for removal of the
-row-level listing command.
+row-level listing command. The approved-input validation additionally supports
+that the exact `85076dc` infrastructure commit enforces the recorded local
+input approval before and after execution and comparison.
 
 This is not proof that the available file is the exact publication input, does
 not reproduce upstream TriNetX construction, and does not resolve the

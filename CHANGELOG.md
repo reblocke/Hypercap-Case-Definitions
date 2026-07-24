@@ -8,6 +8,9 @@
 - Recorded the owner-approved historical producer commit and observed input
   schema while retaining the missing upstream source-hash, clean-worktree, and
   variable-derivation limitations.
+- Executed the exact approved-input implementation twice from a clean isolated
+  checkout and confirmed approval-gated completion, baseline equivalence,
+  candidate repeatability, and post-comparison input identity.
 - Added a guarded restricted-data Stata runner with unique run identifiers,
   preflight dependency checks, data-dictionary-driven input validation,
   provenance manifests, explicit completion status, and a 40-artifact success
