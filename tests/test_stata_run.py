@@ -31,6 +31,7 @@ def write_fake_stata(
     write_status: bool = True,
     write_guarded_controls: bool = True,
     mutate_input: bool = False,
+    exit_code: int = 0,
 ) -> None:
     xlsx = repr(list(stata_run.EXPECTED_XLSX))
     png = repr(list(stata_run.EXPECTED_PNG))
@@ -89,6 +90,8 @@ dependency_path.write_text(
     b"changed-during-stata-run"
 )
 """
+    if exit_code:
+        source += f"raise SystemExit({exit_code})\n"
     path.write_text(source, encoding="utf-8")
     path.chmod(path.stat().st_mode | stat.S_IXUSR)
 
@@ -154,6 +157,81 @@ class StataRunUnitTests(unittest.TestCase):
             success_exists = (run_dir / "SUCCESS").exists()
         self.assertEqual(1, code)
         self.assertEqual("missing_status", manifest["failure_category"])
+        self.assertFalse(success_exists)
+
+    def test_nonzero_process_exit_rejects_successful_status_and_artifacts(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            input_root = base / "input"
+            output_root = base / "output"
+            input_root.mkdir()
+            write_approved_input(input_root)
+            fake = base / "fake-stata"
+            write_fake_stata(fake, exit_code=7)
+            args = stata_run.parser().parse_args(
+                [
+                    "--input-root",
+                    str(input_root),
+                    "--output-root",
+                    str(output_root),
+                    "--stata-bin",
+                    str(fake),
+                    "--run-id",
+                    "nonzero-exit",
+                ]
+            )
+            code, run_dir = stata_run.run(args)
+            manifest = json.loads((run_dir / "run_manifest.json").read_text())
+            success_exists = (run_dir / "SUCCESS").exists()
+        self.assertEqual(1, code)
+        self.assertEqual("stata_process_exit", manifest["failure_category"])
+        self.assertEqual(7, manifest["stata"]["process_return_code"])
+        self.assertFalse(success_exists)
+
+    def test_negative_process_return_rejects_successful_status_and_artifacts(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            input_root = base / "input"
+            output_root = base / "output"
+            input_root.mkdir()
+            write_approved_input(input_root)
+            fake = base / "fake-stata"
+            write_fake_stata(fake)
+            args = stata_run.parser().parse_args(
+                [
+                    "--input-root",
+                    str(input_root),
+                    "--output-root",
+                    str(output_root),
+                    "--stata-bin",
+                    str(fake),
+                    "--run-id",
+                    "negative-exit",
+                ]
+            )
+            real_subprocess_run = stata_run.subprocess.run
+
+            def force_negative_return(command, **kwargs):
+                result = real_subprocess_run(command, **kwargs)
+                if len(command) > 2 and command[2] == "do":
+                    result.returncode = -9
+                return result
+
+            with mock.patch.object(
+                stata_run.subprocess,
+                "run",
+                side_effect=force_negative_return,
+            ):
+                code, run_dir = stata_run.run(args)
+            manifest = json.loads((run_dir / "run_manifest.json").read_text())
+            success_exists = (run_dir / "SUCCESS").exists()
+        self.assertEqual(1, code)
+        self.assertEqual("stata_process_exit", manifest["failure_category"])
+        self.assertEqual(-9, manifest["stata"]["process_return_code"])
         self.assertFalse(success_exists)
 
     def test_success_manifest_contains_no_absolute_paths(self) -> None:

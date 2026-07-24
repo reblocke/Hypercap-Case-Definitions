@@ -43,8 +43,10 @@ def write_run_manifest(
     legacy: bool,
     commit: str,
     input_sha256: str,
+    run_id: str,
     approval: dict[str, str] | None = None,
     include_approval: bool = True,
+    artifact_relative_path: str = ".",
 ) -> None:
     path.mkdir()
     input_record: dict[str, object] = {"sha256": input_sha256}
@@ -55,13 +57,46 @@ def write_run_manifest(
     (path / "run_manifest.json").write_text(
         json.dumps(
             {
+                "run_id": run_id,
+                "status": "success",
                 "legacy_two_argument_mode": legacy,
                 "analysis_commit": commit,
+                "analysis_worktree_dirty": False,
                 "input": input_record,
+                "artifact_relative_path": artifact_relative_path,
+                "artifacts": {
+                    "missing": [],
+                    "control_missing": [],
+                    "analysis_log": "Logs/analysis.log",
+                    "copied_do": "Logs/analysis.do",
+                },
             }
         ),
         encoding="utf-8",
     )
+
+
+def write_complete_run_evidence(path: Path, *, legacy: bool) -> None:
+    (path / "Logs").mkdir()
+    (path / "graph-temp").mkdir()
+    for name in compare.stata_run.EXPECTED_XLSX:
+        (path / name).write_bytes(b"x")
+    for name in compare.stata_run.EXPECTED_PNG:
+        (path / name).write_bytes(b"x")
+    for name in compare.stata_run.EXPECTED_GPH:
+        (path / "graph-temp" / name).write_bytes(b"x")
+    (path / "Logs" / "analysis.log").write_text("log\n", encoding="utf-8")
+    (path / "Logs" / "analysis.do").write_text("do\n", encoding="utf-8")
+    (path / "dependency_report.tsv").write_text("dependency\n", encoding="utf-8")
+    (path / "run_status.tsv").write_text("status\tsuccess\n", encoding="utf-8")
+    (path / "SUCCESS").write_text("status=success\n", encoding="utf-8")
+    if not legacy:
+        (path / "input_validation.tsv").write_text("check\tstatus\n", encoding="utf-8")
+        (path / "run_metrics.tsv").write_text("metric\tvalue\n", encoding="utf-8")
+        (path / "ANALYSIS_COMPLETE").write_text(
+            "analysis_complete=true\n",
+            encoding="utf-8",
+        )
 
 
 def passing_comparison(
@@ -111,6 +146,9 @@ def run_stubbed_comparator(
     current_approval: dict[str, str] | None = None,
     approval_overrides: dict[str, dict[str, str]] | None = None,
     omit_approval_roles: set[str] | None = None,
+    run_id_overrides: dict[str, str] | None = None,
+    artifact_relative_overrides: dict[str, str] | None = None,
+    missing_control: tuple[str, str] | None = None,
 ) -> tuple[int, dict[str, object], int]:
     roles = ("baseline", "candidate_1", "candidate_2")
     if input_file is None:
@@ -137,6 +175,10 @@ def run_stubbed_comparator(
     approvals = {role: current_approval for role in roles}
     approvals.update(approval_overrides or {})
     omit_approval_roles = omit_approval_roles or set()
+    run_ids = {role: f"{role}-run" for role in roles}
+    run_ids.update(run_id_overrides or {})
+    artifact_relatives = {role: "." for role in roles}
+    artifact_relatives.update(artifact_relative_overrides or {})
 
     runs = {role: root / role for role in roles}
     for role, path in runs.items():
@@ -145,9 +187,15 @@ def run_stubbed_comparator(
             legacy=legacy_modes[role],
             commit=commits[role],
             input_sha256=input_hashes[role],
+            run_id=run_ids[role],
             approval=approvals[role],
             include_approval=role not in omit_approval_roles,
+            artifact_relative_path=artifact_relatives[role],
         )
+        write_complete_run_evidence(path, legacy=legacy_modes[role])
+    if missing_control is not None:
+        role, relative_path = missing_control
+        (runs[role] / relative_path).unlink()
 
     report_path = root / "comparison.json"
     arguments = [
@@ -595,16 +643,20 @@ class ComparatorUnitTests(unittest.TestCase):
                 legacy=True,
                 commit="baseline",
                 input_sha256=input_hash,
+                run_id="baseline-run",
                 include_approval=False,
             )
+            write_complete_run_evidence(runs["baseline"], legacy=True)
             for role in ("candidate_1", "candidate_2"):
                 write_run_manifest(
                     runs[role],
                     legacy=False,
                     commit="candidate",
                     input_sha256=input_hash,
+                    run_id=f"{role}-run",
                     approval=approved["approval"],
                 )
+                write_complete_run_evidence(runs[role], legacy=False)
             report_path = root / "comparison.json"
 
             def mutate_then_pass(
@@ -662,16 +714,20 @@ class ComparatorUnitTests(unittest.TestCase):
                 legacy=True,
                 commit="baseline",
                 input_sha256=input_hash,
+                run_id="baseline-run",
                 include_approval=False,
             )
+            write_complete_run_evidence(runs["baseline"], legacy=True)
             for role in ("candidate_1", "candidate_2"):
                 write_run_manifest(
                     runs[role],
                     legacy=False,
                     commit="candidate",
                     input_sha256=input_hash,
+                    run_id=f"{role}-run",
                     approval=approved["approval"],
                 )
+                write_complete_run_evidence(runs[role], legacy=False)
             report_path = root / "comparison.json"
             replacement_done = False
 
@@ -762,21 +818,153 @@ class ComparatorUnitTests(unittest.TestCase):
                 "baseline": {
                     "legacy_two_argument_mode": True,
                     "analysis_commit": "baseline",
+                    "run_id": "baseline",
                 },
                 "candidate_1": {
                     "legacy_two_argument_mode": False,
                     "analysis_commit": "candidate",
+                    "run_id": "candidate-one",
                 },
                 "candidate_2": {
                     "legacy_two_argument_mode": False,
                     "analysis_commit": "candidate",
+                    "run_id": "candidate-two",
                 },
             }
-            failures = compare.validate_run_set(runs, manifests)
+            failures = compare.validate_run_set(runs, manifests, runs)
         self.assertIn(
             {"category": "run_isolation", "role": "run_set"},
             failures,
         )
+
+    def test_artifact_roots_cannot_escape_run_directories(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            run = root / "run"
+            shared = root / "shared"
+            run.mkdir()
+            shared.mkdir()
+            (run / "linked").symlink_to(shared, target_is_directory=True)
+            for relative in (str(shared), "../shared", "linked"):
+                with self.subTest(relative=relative):
+                    with self.assertRaises(compare.ArtifactRootFailure):
+                        compare.resolve_artifact_root(
+                            run,
+                            {"artifact_relative_path": relative},
+                        )
+
+    def test_artifact_roots_must_be_pairwise_distinct(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            runs = {
+                role: root / role
+                for role in ("baseline", "candidate_1", "candidate_2")
+            }
+            for path in runs.values():
+                path.mkdir()
+            manifests = {
+                "baseline": {
+                    "legacy_two_argument_mode": True,
+                    "analysis_commit": "baseline",
+                    "run_id": "baseline",
+                },
+                "candidate_1": {
+                    "legacy_two_argument_mode": False,
+                    "analysis_commit": "candidate",
+                    "run_id": "candidate-one",
+                },
+                "candidate_2": {
+                    "legacy_two_argument_mode": False,
+                    "analysis_commit": "candidate",
+                    "run_id": "candidate-two",
+                },
+            }
+            artifact_roots = {
+                "baseline": runs["baseline"],
+                "candidate_1": runs["candidate_1"],
+                "candidate_2": runs["candidate_1"],
+            }
+            failures = compare.validate_run_set(
+                runs,
+                manifests,
+                artifact_roots,
+            )
+        self.assertIn(
+            {"category": "artifact_isolation", "role": "run_set"},
+            failures,
+        )
+
+    def test_candidate_run_ids_must_be_nonempty_and_distinct(self) -> None:
+        cases = (
+            (
+                {"candidate_1": "", "candidate_2": "candidate-two"},
+                {"category": "run_id", "role": "candidate_1"},
+            ),
+            (
+                {"candidate_1": "candidate-one", "candidate_2": ""},
+                {"category": "run_id", "role": "candidate_2"},
+            ),
+            (
+                {"candidate_1": "same-run", "candidate_2": "same-run"},
+                {
+                    "category": "candidate_run_id_match",
+                    "role": "candidate_set",
+                },
+            ),
+        )
+        for overrides, expected_failure in cases:
+            with (
+                self.subTest(expected_failure=expected_failure),
+                tempfile.TemporaryDirectory() as tmp,
+            ):
+                status, report, comparison_count = run_stubbed_comparator(
+                    Path(tmp),
+                    run_id_overrides=overrides,
+                )
+                self.assertEqual(1, status)
+                self.assertIn(expected_failure, report["failures"])
+                self.assertEqual([], report["comparisons"])
+                self.assertEqual(0, comparison_count)
+
+    def test_live_guarded_controls_are_required_before_comparison(self) -> None:
+        controls = (
+            "SUCCESS",
+            "run_status.tsv",
+            "input_validation.tsv",
+            "run_metrics.tsv",
+            "ANALYSIS_COMPLETE",
+        )
+        for control in controls:
+            with self.subTest(control=control), tempfile.TemporaryDirectory() as tmp:
+                status, report, comparison_count = run_stubbed_comparator(
+                    Path(tmp),
+                    missing_control=("candidate_1", control),
+                )
+                self.assertEqual(1, status)
+                self.assertIn(
+                    {"category": "control_inventory", "role": "candidate_1"},
+                    report["failures"],
+                )
+                self.assertEqual([], report["comparisons"])
+                self.assertEqual(0, comparison_count)
+
+    def test_unsafe_artifact_root_writes_path_safe_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            secret = "../restricted-patient-artifacts"
+            status, report, comparison_count = run_stubbed_comparator(
+                root,
+                artifact_relative_overrides={"candidate_1": secret},
+            )
+            report_text = json.dumps(report)
+        self.assertEqual(1, status)
+        self.assertEqual(
+            [{"category": "artifact_root", "role": "run_set"}],
+            report["failures"],
+        )
+        self.assertEqual([], report["comparisons"])
+        self.assertEqual(0, comparison_count)
+        self.assertNotIn(secret, report_text)
 
     def test_candidate_commits_must_be_nonempty_and_match(self) -> None:
         cases = (
@@ -914,26 +1102,31 @@ class ComparatorUnitTests(unittest.TestCase):
             self.assertEqual(0, comparison_count)
 
     def test_run_set_failure_details_do_not_expose_commit_values(self) -> None:
+        runs = {
+            "baseline": Path("/baseline"),
+            "candidate_1": Path("/candidate-one"),
+            "candidate_2": Path("/candidate-two"),
+        }
         failures = compare.validate_run_set(
-            {
-                "baseline": Path("/baseline"),
-                "candidate_1": Path("/candidate-one"),
-                "candidate_2": Path("/candidate-two"),
-            },
+            runs,
             {
                 "baseline": {
                     "legacy_two_argument_mode": False,
                     "analysis_commit": "baseline-secret",
+                    "run_id": "baseline-run",
                 },
                 "candidate_1": {
                     "legacy_two_argument_mode": False,
                     "analysis_commit": "candidate-secret-one",
+                    "run_id": "candidate-one-run",
                 },
                 "candidate_2": {
                     "legacy_two_argument_mode": False,
                     "analysis_commit": "candidate-secret-two",
+                    "run_id": "candidate-two-run",
                 },
             },
+            runs,
         )
         self.assertTrue(failures)
         self.assertTrue(

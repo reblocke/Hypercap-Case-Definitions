@@ -488,6 +488,11 @@ def run(args: argparse.Namespace) -> tuple[int, Path | None]:
         ]
         process = subprocess.run(command, cwd=run_dir, check=False)
         manifest["stata"]["process_return_code"] = process.returncode
+        if process.returncode != 0:
+            raise RunFailure(
+                "stata_process_exit",
+                "The Stata process exited abnormally.",
+            )
 
         status = parse_key_value_tsv(status_path)
         manifest["driver_status"] = status

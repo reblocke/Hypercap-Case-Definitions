@@ -71,9 +71,9 @@ article estimates were reproduced.
 - Run `make diagram-smoke` when Python 3.11 and Graphviz are available.
 - Validate `CITATION.cff` as YAML and, when available, with `cffconvert`.
 - Confirm no hard-coded user-home paths, Windows local paths, legacy generated-output roots, root `.gph`, root `.log`, or restricted-data paths are introduced.
-- Confirm the guarded runner is collision-safe and that `SUCCESS` cannot be written without fresh Stata status, completion, and all 40 legacy artifacts.
+- Confirm the guarded runner is collision-safe and that `SUCCESS` cannot be written without a zero Stata process return code, fresh Stata status, completion, and all 40 legacy artifacts.
 - Confirm new runs cannot resolve or launch Stata without a valid adjacent input approval matching the tracked producer/schema and data dictionary.
-- Confirm the runner revalidates that approval before `SUCCESS`, the comparator revalidates it after comparisons, and filesystem aliases cannot satisfy distinct run roles.
+- Confirm the runner revalidates that approval before `SUCCESS`; the comparator revalidates it after comparisons, requires distinct candidate run IDs, rechecks controls on disk, and rejects escaping or aliased artifact roots.
 - Confirm the runner rejects a split runner/analysis checkout before creating a run directory.
 - Confirm comparison reports never expose workbook values or row-level log content.
 - Confirm README, `llms.txt`, `CITATION.cff`, and the data dictionary agree on DOI `10.1016/j.chest.2025.08.002`, PMID `40885535`, PMCID `PMC12739763`, and the restricted TriNetX data boundary.

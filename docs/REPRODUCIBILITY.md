@@ -89,8 +89,8 @@ The runner:
   in an ignored manifest;
 - preflights required community Stata dependencies;
 - validates all documented runtime inputs before analysis;
-- treats Stata's explicit status and completion artifacts—not its shell return
-  code alone—as authoritative;
+- requires both a zero Stata process return code and explicit successful status
+  and completion artifacts;
 - revalidates the input bytes, adjacent approval, and tracked authority after
   analysis; and
 - writes `SUCCESS` only when all 40 expected legacy artifacts are present and
@@ -129,17 +129,20 @@ For a code change that is intended to preserve results:
 Before assigning equivalence or repeatability labels, the comparator validates
 the current adjacent approval, requires a legacy baseline, requires two guarded
 candidates whose approval references match that manifest, and requires matching
-nonempty candidate commit identifiers. A preserved legacy baseline may lack the
-new approval reference; if it records one, that reference must match. The
-comparator rehashes the current input and compares that hash with every run
+nonempty candidate commit identifiers plus distinct nonempty candidate run
+identifiers. A preserved legacy baseline may lack the new approval reference;
+if it records one, that reference must match. Every artifact root must resolve
+inside its own run directory and remain distinct from the other artifact
+roots. The comparator recomputes the artifact and completion-control inventory
+from disk, rehashes the current input, and compares that hash with every run
 manifest even when no optional expected-hash pin is supplied. It then checks
 environment and input identity, dependency hashes, semantic workbook content,
 decoded PNG pixels, required nonempty Stata graph files, copied-do hashes, and
 normalized logs. It revalidates the input and approval immediately before
 reporting and atomically replaces any prior comparison report, so a stale pass
 cannot survive an incomplete comparison. It reports only discrepancy
-categories, locations, and hashes—not cell values or row-level content. Passing
-baseline equivalence and candidate repeatability are separate required
+categories, locations, and hashes—not cell values or row-level content.
+Passing baseline equivalence and candidate repeatability are separate required
 conditions. A sanitized record of the completed HCD-000B validation is in
 [`VALIDATION.md`](VALIDATION.md); detailed evidence remains ignored and local.
 

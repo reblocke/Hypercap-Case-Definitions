@@ -13,7 +13,7 @@ import re
 import sys
 import tempfile
 import zipfile
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any, Iterable
 
 from openpyxl import load_workbook
@@ -27,15 +27,43 @@ REL_TOL = 1e-12
 ROOT = Path(__file__).resolve().parents[1]
 
 
+class ArtifactRootFailure(ValueError):
+    """Raised when a manifest artifact root is unsafe or unavailable."""
+
+
 def digest_text(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def resolve_artifact_root(path: Path, manifest: dict[str, Any]) -> Path:
+    relative = manifest.get("artifact_relative_path", ".")
+    if not isinstance(relative, str):
+        raise ArtifactRootFailure
+    relative = relative or "."
+    relative_path = Path(relative)
+    windows_path = PureWindowsPath(relative)
+    if (
+        relative_path.is_absolute()
+        or windows_path.is_absolute()
+        or windows_path.drive
+        or ".." in relative_path.parts
+        or ".." in windows_path.parts
+    ):
+        raise ArtifactRootFailure
+    try:
+        run_root = path.resolve(strict=True)
+        artifact_root = (run_root / relative_path).resolve(strict=True)
+    except OSError as exc:
+        raise ArtifactRootFailure from exc
+    if not artifact_root.is_dir() or not artifact_root.is_relative_to(run_root):
+        raise ArtifactRootFailure
+    return artifact_root
 
 
 def load_run(path: Path) -> tuple[dict[str, Any], Path]:
     manifest_path = path / "run_manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    relative = manifest.get("artifact_relative_path", ".")
-    artifact_root = path if relative in {"", "."} else path / relative
+    artifact_root = resolve_artifact_root(path, manifest)
     return manifest, artifact_root
 
 
@@ -402,6 +430,7 @@ def compare_pair(
 def validate_run_set(
     runs: dict[str, Path],
     manifests: dict[str, dict[str, Any]],
+    artifact_roots: dict[str, Path],
 ) -> list[dict[str, str]]:
     failures: list[dict[str, str]] = []
     run_paths = list(runs.values())
@@ -419,6 +448,22 @@ def validate_run_set(
                 break
     if duplicate_run:
         failures.append({"category": "run_isolation", "role": "run_set"})
+
+    artifact_paths = list(artifact_roots.values())
+    duplicate_artifacts = len(set(artifact_paths)) != len(artifact_paths)
+    if not duplicate_artifacts:
+        for index, left in enumerate(artifact_paths):
+            for right in artifact_paths[index + 1 :]:
+                try:
+                    if left.samefile(right):
+                        duplicate_artifacts = True
+                        break
+                except OSError:
+                    continue
+            if duplicate_artifacts:
+                break
+    if duplicate_artifacts:
+        failures.append({"category": "artifact_isolation", "role": "run_set"})
 
     expected_legacy_modes = {
         "baseline": True,
@@ -443,6 +488,45 @@ def validate_run_set(
         failures.append(
             {"category": "candidate_commit_match", "role": "candidate_set"}
         )
+
+    candidate_run_ids: dict[str, str] = {}
+    for role in ("candidate_1", "candidate_2"):
+        run_id = manifests[role].get("run_id")
+        if not isinstance(run_id, str) or not run_id.strip():
+            failures.append({"category": "run_id", "role": role})
+            continue
+        candidate_run_ids[role] = run_id.strip()
+    if (
+        len(candidate_run_ids) == 2
+        and candidate_run_ids["candidate_1"] == candidate_run_ids["candidate_2"]
+    ):
+        failures.append(
+            {"category": "candidate_run_id_match", "role": "candidate_set"}
+        )
+    return failures
+
+
+def validate_live_run_evidence(
+    runs: dict[str, Path],
+    manifests: dict[str, dict[str, Any]],
+    artifact_roots: dict[str, Path],
+) -> list[dict[str, str]]:
+    failures: list[dict[str, str]] = []
+    for role, run_dir in runs.items():
+        manifest = manifests[role]
+        artifact_root = artifact_roots[role]
+        inventory = stata_run.validate_artifact_inventory(artifact_root)
+        if inventory["missing"]:
+            failures.append({"category": "artifact_inventory", "role": role})
+        controls = stata_run.validate_control_artifacts(
+            run_dir,
+            artifact_root,
+            inventory,
+            legacy=manifest.get("legacy_two_argument_mode") is True,
+            include_success=True,
+        )
+        if controls["control_missing"]:
+            failures.append({"category": "control_inventory", "role": role})
     return failures
 
 
@@ -608,14 +692,46 @@ def main(argv: Iterable[str] | None = None) -> int:
         return 0 if report["status"] == "pass" else 1
 
     try:
-        manifests = {role: load_run(path)[0] for role, path in runs.items()}
-        failures: list[dict[str, Any]] = validate_run_set(runs, manifests)
+        loaded_runs = {role: load_run(path) for role, path in runs.items()}
+        manifests = {
+            role: loaded_runs[role][0]
+            for role in runs
+        }
+        artifact_roots = {
+            role: loaded_runs[role][1]
+            for role in runs
+        }
+        failures: list[dict[str, Any]] = validate_run_set(
+            runs,
+            manifests,
+            artifact_roots,
+        )
+        failures.extend(
+            validate_live_run_evidence(
+                runs,
+                manifests,
+                artifact_roots,
+            )
+        )
         failures.extend(
             validate_run_input_manifest_references(
                 manifests,
                 current_input["approval"],
             )
         )
+    except ArtifactRootFailure:
+        report = write_report(
+            report_path,
+            observed_input_hash=current_input["input"]["sha256"],
+            comparisons=[],
+            failures=[
+                {
+                    "category": "artifact_root",
+                    "role": "run_set",
+                }
+            ],
+        )
+        return 0 if report["status"] == "pass" else 1
     except (AttributeError, KeyError, OSError, TypeError, ValueError):
         report = write_report(
             report_path,

@@ -21,6 +21,9 @@
 - Hardened comparison adjudication so current input drift, incorrect run roles,
   missing or mismatched candidate commits, and omission of the current input
   fail before equivalence or repeatability labels are assigned.
+- Required contained and distinct artifact roots, distinct candidate run IDs,
+  live completion controls, and a zero Stata process return code before a
+  validation run or comparison can pass.
 - Preserved Stata contract-import failures through cleanup, separately locked
   the diagnostic-performance program, and made phenotype source locations
   executable-code checks rather than unchecked line-number annotations.

@@ -133,9 +133,9 @@ make stata-run \
 `INPUT_ROOT` is the directory containing `full_db.dta`. The runner creates a
 unique run directory, records hashes and the Stata environment in an ignored
 manifest, verifies the adjacent approval and input contract before launch and
-again after analysis, and writes `SUCCESS` only after Stata reports completion
-and all 40 legacy artifacts are present and nonempty. Existing run directories
-are never reused.
+again after analysis, and writes `SUCCESS` only after the Stata process exits
+zero, Stata reports completion, and all 40 legacy artifacts are present and
+nonempty. Existing run directories are never reused.
 
 `make stata-run` is the sole supported scientific execution interface. The
 internal legacy argument mode is retained only to interpret preserved
@@ -156,15 +156,18 @@ make stata-compare \
 
 Before comparing artifacts, the comparator validates the current adjacent
 approval, requires a legacy baseline, requires two guarded candidates whose
-approval references match the current manifest, and requires matching nonempty
-candidate commit identifiers. It also rehashes the current input and checks it
-against every run manifest even when the optional expected-hash pin is omitted.
-It then checks workbook values and structure, decoded PNG pixels, required Stata
-graph presence, normalized analysis logs, dependencies, input identity, and
-candidate repeatability; immediately before reporting, it revalidates that the
-input and approval did not change during comparison. Its detailed report
-remains under ignored `outputs/`. The latest sanitized validation outcome is
-recorded in
+approval references match the current manifest, matching nonempty candidate
+commit identifiers, and distinct nonempty candidate run identifiers. Each
+artifact root must be contained within and distinct from its run directory, and
+the comparator rechecks the complete artifact and control inventory on disk
+rather than trusting the manifest's cached inventory. It also rehashes the
+current input and checks it against every run manifest even when the optional
+expected-hash pin is omitted. It then checks workbook values and structure,
+decoded PNG pixels, required Stata graph presence, normalized analysis logs,
+dependencies, input identity, and candidate repeatability; immediately before
+reporting, it revalidates that the input and approval did not change during
+comparison. Its detailed report remains under ignored `outputs/`. The latest
+sanitized validation outcome is recorded in
 [`docs/VALIDATION.md`](docs/VALIDATION.md).
 
 The exact publication-time package versions are unresolved. The code-derived
