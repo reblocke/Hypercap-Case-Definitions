@@ -25,6 +25,9 @@
 - Re-adjudicated those preserved runs with the strengthened comparator and
   confirmed the corrected contract-import failure path plus the current
   restricted-input preflight without repeating unchanged scientific analyses.
+- Executed the exact review-remediation commit twice from a clean isolated
+  checkout and confirmed complete guarded runs, baseline equivalence,
+  repeatability, and post-run input identity with the strengthened comparator.
 - Defined public, restricted downstream, and upstream reproducibility boundaries.
 - Added code-derived phenotype, upstream provenance, Stata dependency, and generated-output metadata without approving unresolved scientific rules.
 - Normalized the data dictionary to one row per input or derived variable and separated generated artifacts into an output manifest.

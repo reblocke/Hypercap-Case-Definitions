@@ -3,14 +3,17 @@
 ## Scope
 
 This summary records the HCD-000B downstream validation completed on
-2026-07-22 Mountain Time (2026-07-23 UTC). It intentionally omits restricted
-input locations and hashes, dataset dimensions, result values, logs, and
-detailed comparison evidence.
+2026-07-22 Mountain Time (2026-07-23 UTC) and the review-remediation validation
+completed on 2026-07-23 Mountain Time. It intentionally omits restricted input
+locations and hashes, dataset dimensions, result values, logs, and detailed
+comparison evidence.
 
 The validated analysis commits were:
 
 - legacy baseline: `3520a95663d69beeebe48ad8948300506f4f10de`;
-- guarded candidate: `ba7337bdb24494859e668a26383d91202eb9f76d`.
+- initial guarded candidate: `ba7337bdb24494859e668a26383d91202eb9f76d`;
+- review-remediation candidate:
+  `17ffcf9c16ff11254717fe0d8b234bfa9b79a7c1`.
 
 The restricted artifact was observed in upstream checkout
 `1185a6bc9957a02cb24be5f1f7fa10c48d8a4c13`. That checkout is context only:
@@ -36,6 +39,7 @@ hashes and observed version headers remain in ignored run manifests.
 | Clean legacy baseline execution and complete output gate | Pass |
 | Clean candidate execution 1 and complete output gate | Pass |
 | Clean candidate execution 2 and complete output gate | Pass |
+| Two clean review-remediation candidate executions and complete output gates | Pass |
 | Input identity before, across, and after the three runs | Pass |
 | Baseline versus candidate semantic workbook comparison | Pass |
 | Baseline versus candidate decoded PNG-pixel comparison | Pass |
@@ -65,12 +69,16 @@ exercised the corrected behavior. It confirmed:
 
 A targeted Stata negative-path smoke also confirmed that a failed contract
 import returns its original nonzero status after frame cleanup. A separate
-positive-path preflight against the current restricted input passed. The three
-full analyses were not repeated because the remediation changed only validation
-failure handling, comparison adjudication, tests, and metadata—not the locked
-scientific analysis. This re-adjudication continues to attest the baseline and
-candidate commits named above; it does not claim an end-to-end analysis run of
-the later review-remediation commit.
+positive-path preflight against the current restricted input passed.
+
+The exact review-remediation commit
+`17ffcf9c16ff11254717fe0d8b234bfa9b79a7c1` was then executed twice from a
+clean isolated checkout against the same restricted input. Both guarded runs
+passed fresh Stata status, completion, and 40-artifact inventory gates. The
+strengthened comparator confirmed that the current input matched all three run
+manifests, the preserved legacy baseline matched the first remediation run, and
+the two remediation runs were repeatable. Detailed run and comparison evidence
+remains local and ignored.
 
 ## Interpretation and Boundary
 
