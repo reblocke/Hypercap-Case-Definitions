@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- Applied the owner-approved HCD-001 decisions for SA-001, SA-003 through
+  SA-006, SA-010, and SA-011 while preserving SA-002, SA-007, SA-008, and
+  SA-009 as unresolved.
+- Executed the exact HCD-001 scientific-correction commit twice against the
+  same approved input, recorded correction impact, and confirmed complete
+  guarded runs and candidate repeatability.
+- Made preserved-run log comparison relocation-safe by normalizing only Stata
+  file notifications that share one root for the known expected artifact
+  inventory; inconsistent roots, unknown paths, and substantive transcript
+  differences remain comparison failures.
+- Made CONSORT TIFF export portable by rendering an intermediate PNG,
+  converting it with the locked Pillow dependency, validating the TIFF, and
+  removing intermediate renderer files.
 - Added explicit one-time approval for the adjacent restricted input, bound new
   runs and comparisons to that manifest, and made `make stata-run` the sole
   supported scientific execution interface.

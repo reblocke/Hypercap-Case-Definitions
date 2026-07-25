@@ -350,6 +350,168 @@ class ComparatorUnitTests(unittest.TestCase):
         self.assertEqual(left, right)
         self.assertNotIn("driver", left)
 
+    def test_log_normalization_is_safe_after_run_relocation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            relocated_left = root / "archive" / "candidate-one"
+            relocated_right = root / "archive" / "candidate-two"
+            relocated_left.mkdir(parents=True)
+            relocated_right.mkdir(parents=True)
+            left_log = relocated_left / "analysis.log"
+            right_log = relocated_right / "analysis.log"
+            prefix = "/* ------------------\n   Pre-processing\n--------------------*/\n"
+            left_log.write_text(
+                prefix
+                + "file /original/run-one/Overall Cohort chars.xlsx saved\n"
+                + "(file /original/run-one/graph-temp/"
+                + "All_Encounters_Prob_Dx_spline.gph not found)\n",
+                encoding="utf-8",
+            )
+            right_log.write_text(
+                prefix
+                + "file /original/run-two/Overall Cohort chars.xlsx saved\n"
+                + "(file /original/run-two/graph-temp/"
+                + "All_Encounters_Prob_Dx_spline.gph not found)\n",
+                encoding="utf-8",
+            )
+            left = compare.normalize_log(
+                left_log,
+                relocated_left,
+                relocated_left,
+            )
+            right = compare.normalize_log(
+                right_log,
+                relocated_right,
+                relocated_right,
+            )
+        self.assertEqual(left, right)
+        self.assertIn("file <OUTPUT>/Overall Cohort chars.xlsx saved", left)
+        self.assertIn(
+            "(file <OUTPUT>/graph-temp/All_Encounters_Prob_Dx_spline.gph "
+            "not found)",
+            left,
+        )
+        self.assertNotIn("/original/run-one", left)
+        self.assertNotIn("/original/run-two", right)
+
+    def test_log_normalization_does_not_hide_unknown_path_differences(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            left_log = root / "left.log"
+            right_log = root / "right.log"
+            prefix = "/* ------------------\n   Pre-processing\n--------------------*/\n"
+            left_log.write_text(
+                prefix + "file /original/run-one/unexpected.txt saved\n",
+                encoding="utf-8",
+            )
+            right_log.write_text(
+                prefix + "file /original/run-two/unexpected.txt saved\n",
+                encoding="utf-8",
+            )
+            left = compare.normalize_log(left_log, root, root)
+            right = compare.normalize_log(right_log, root, root)
+        self.assertNotEqual(left, right)
+
+    def test_log_normalization_rejects_mixed_expected_artifact_roots(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            left_log = root / "left.log"
+            right_log = root / "right.log"
+            prefix = "/* ------------------\n   Pre-processing\n--------------------*/\n"
+            left_log.write_text(
+                prefix
+                + "file /original/run-one/Overall Cohort chars.xlsx saved\n"
+                + "file /original/run-one/Definition Overlap HeatPlot.png "
+                + "saved as PNG format\n",
+                encoding="utf-8",
+            )
+            right_log.write_text(
+                prefix
+                + "file /original/run-two/Overall Cohort chars.xlsx saved\n"
+                + "file /unexpected/run-three/Definition Overlap HeatPlot.png "
+                + "saved as PNG format\n",
+                encoding="utf-8",
+            )
+            left = compare.normalize_log(left_log, root, root)
+            with self.assertRaises(compare.LogOutputRootFailure):
+                compare.normalize_log(right_log, root, root)
+        self.assertIn("<OUTPUT>/Overall Cohort chars.xlsx", left)
+
+    def test_log_comparison_fails_for_identical_mixed_output_roots(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            left = root / "left"
+            right = root / "right"
+            for run in (left, right):
+                (run / "Logs").mkdir(parents=True)
+                (run / "Logs" / "analysis.log").write_text(
+                    "/* ------------------\n"
+                    "   Pre-processing\n"
+                    "--------------------*/\n"
+                    "file /shared/run-one/Overall Cohort chars.xlsx saved\n"
+                    "file /shared/run-two/Definition Overlap HeatPlot.png "
+                    "saved as PNG format\n",
+                    encoding="utf-8",
+                )
+            manifest = {"artifacts": {"analysis_log": "Logs/analysis.log"}}
+            failures: list[dict[str, object]] = []
+            compare.compare_logs(
+                manifest,
+                left,
+                left,
+                manifest,
+                right,
+                right,
+                failures,
+            )
+        self.assertEqual(
+            [
+                {
+                    "category": "analysis_log_output_roots",
+                    "artifact": "analysis_log",
+                    "role": "left",
+                },
+                {
+                    "category": "analysis_log_output_roots",
+                    "artifact": "analysis_log",
+                    "role": "right",
+                },
+            ],
+            failures,
+        )
+
+    def test_known_artifact_paths_remain_sensitive_outside_file_messages(self) -> None:
+        left = (
+            'display "/original/run-one/Overall Cohort chars.xlsx"\n'
+            "file /original/run-one/Overall Cohort chars.xlsx saved"
+        )
+        right = (
+            'display "/original/run-two/Overall Cohort chars.xlsx"\n'
+            "file /original/run-two/Overall Cohort chars.xlsx saved"
+        )
+        self.assertNotEqual(
+            compare.redact_known_output_paths(left),
+            compare.redact_known_output_paths(right),
+        )
+        self.assertIn(
+            'display "/original/run-one/Overall Cohort chars.xlsx"',
+            compare.redact_known_output_paths(left),
+        )
+        self.assertIn(
+            "file <OUTPUT>/Overall Cohort chars.xlsx saved",
+            compare.redact_known_output_paths(left),
+        )
+
+    def test_known_output_path_redaction_supports_windows_paths(self) -> None:
+        text = (
+            r"file C:\original\run-one\graph-temp"
+            r"\All_Encounters_Prob_Dx_spline.gph saved"
+        )
+        self.assertEqual(
+            "file <OUTPUT>/graph-temp/All_Encounters_Prob_Dx_spline.gph saved",
+            compare.redact_known_output_paths(text),
+        )
+
     def test_stata_wrapped_path_is_reassembled_before_redaction(self) -> None:
         lines = [
             "file /approved/output/hcd0",
@@ -1279,6 +1441,47 @@ class ComparatorUnitTests(unittest.TestCase):
         )
         self.assertEqual([], report["comparisons"])
         self.assertEqual(0, comparison_count)
+
+    def test_correction_mode_rejects_baseline_log_root_integrity_failure(
+        self,
+    ) -> None:
+        def baseline_root_failure(
+            _left: Path,
+            _right: Path,
+            label: str,
+        ) -> dict[str, object]:
+            if label == "historical_impact":
+                return {
+                    "comparison": label,
+                    "status": "fail",
+                    "failures": [
+                        {
+                            "category": "analysis_log_output_roots",
+                            "artifact": "analysis_log",
+                            "role": "left",
+                        }
+                    ],
+                }
+            return passing_comparison(_left, _right, label)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            status, report, comparison_count = run_stubbed_comparator(
+                Path(tmp),
+                comparison_mode="correction",
+                comparison_side_effect=baseline_root_failure,
+            )
+        self.assertEqual(1, status)
+        self.assertEqual("fail", report["status"])
+        self.assertIn(
+            {
+                "category": "analysis_log_output_roots",
+                "role": "baseline",
+            },
+            report["failures"],
+        )
+        self.assertEqual("changed", report["comparisons"][0]["status"])
+        self.assertEqual("pass", report["comparisons"][1]["status"])
+        self.assertEqual(2, comparison_count)
 
 
 if __name__ == "__main__":

@@ -65,6 +65,7 @@ hashes and observed version headers remain in ignored run manifests.
 | Path- and wrapper-normalized analysis transcript comparison | Pass |
 | Candidate run-to-run repeatability | Pass |
 | HCD-001 correction-impact classification | Pass with documented changes |
+| Relocated HCD-001 archive re-adjudication | Pass |
 
 The transcript comparison removes the legacy row listing, generated output
 paths, Stata line wrapping caused by path length, prompt-only blank lines, and
@@ -182,25 +183,39 @@ therefore remains unresolved and no unapproved plotting change was made.
 Detailed cell locations, hashes, images, logs, and run evidence remain ignored
 and local.
 
+## Relocated HCD-001 Archive Re-adjudication
+
+After the preserved HCD-001 run directories were copied byte-for-byte into the
+canonical ignored validation archive, the strengthened comparator
+re-adjudicated those copies in correction mode. It normalized only Stata file
+notifications that shared one absolute root for the known expected artifact
+inventory. Inconsistent roots, unknown paths, and substantive transcript
+differences remained comparison failures.
+
+The historical correction-impact classification, candidate repeatability,
+current input and approval identity, and all evidence-integrity gates passed.
+Stata was not rerun. The detailed comparison report remains ignored and local.
+
 ## Interpretation and Boundary
 
 These checks support that HCD-000B preserves the baseline downstream results
 for the restricted `full_db.dta` available during validation and that two
-independent candidate runs are repeatable in the observed environment. The
-scientific analysis body is test-locked to HCD-000A except for removal of the
-row-level listing command. The approved-input validation additionally supports
-that the exact `85076dc` infrastructure commit enforces the recorded local
-input approval before and after execution and comparison. The
-evidence-hardening validation supports that the exact `ccbea19` implementation
-also enforces zero Stata process exits, distinct run evidence, contained
-artifact roots, and live completion controls.
+independent candidate runs are repeatable in the observed environment. For the
+HCD-000B validation, the scientific analysis body was test-locked to HCD-000A
+except for removal of the row-level listing command. The approved-input
+validation additionally supports that the exact `85076dc` infrastructure commit
+enforces the recorded local input approval before and after execution and
+comparison. The evidence-hardening validation supports that the exact
+`ccbea19` implementation also enforces zero Stata process exits, distinct run
+evidence, contained artifact roots, and live completion controls.
 
 The HCD-001 validation supports that the exact `9f8fecd` implementation applies
 the owner-approved SA-001, SA-003, SA-004, SA-005, SA-006, SA-010, and SA-011
-decisions and is repeatable in the observed environment. Correction-mode
-`PASS` means that the historical impact was recorded and the corrected
-candidates were repeatable; it does not mean that the corrected artifacts are
-equivalent to the historical baseline.
+decisions and is repeatable in the observed environment. The current
+scientific body is separately test-locked to that approved HCD-001 correction.
+Correction-mode `PASS` means that the historical impact was recorded and the
+corrected candidates were repeatable; it does not mean that the corrected
+artifacts are equivalent to the historical baseline.
 
 This is not proof that the available file is the exact publication input, does
 not reproduce upstream TriNetX construction, and does not resolve the

@@ -25,10 +25,31 @@ import stata_run
 ABS_TOL = 1e-12
 REL_TOL = 1e-12
 ROOT = Path(__file__).resolve().parents[1]
+KNOWN_OUTPUT_RELATIVE_PATHS = tuple(
+    sorted(
+        {
+            *stata_run.EXPECTED_XLSX,
+            *stata_run.EXPECTED_PNG,
+            *stata_run.LEGACY_PNG_ALIASES.values(),
+            *(f"graph-temp/{name}" for name in stata_run.EXPECTED_GPH),
+        },
+        key=len,
+        reverse=True,
+    )
+)
+CORRECTION_MODE_INTEGRITY_CATEGORIES = frozenset(
+    {
+        "analysis_log_output_roots",
+    }
+)
 
 
 class ArtifactRootFailure(ValueError):
     """Raised when a manifest artifact root is unsafe or unavailable."""
+
+
+class LogOutputRootFailure(ValueError):
+    """Raised when a transcript reports expected artifacts under multiple roots."""
 
 
 def digest_text(text: str) -> str:
@@ -260,6 +281,58 @@ def redact_wrapped_path(text: str, path: Path, replacement: str) -> str:
     return re.sub(pattern, replacement, text)
 
 
+def redact_known_output_paths(text: str) -> str:
+    """Redact relocated roots in Stata's expected-artifact file notifications."""
+    patterns = (
+        re.compile(
+            r"^(?P<prefix>file )(?P<path>.+)"
+            r"(?P<suffix> saved(?: as [^\r\n]+ format)?)$"
+        ),
+        re.compile(
+            r"^(?P<prefix>\(file )(?P<path>.+)(?P<suffix> not found\))$"
+        ),
+    )
+    lines = text.split("\n")
+    notifications: dict[int, tuple[re.Match[str], str]] = {}
+    observed_roots: set[str] = set()
+    for index, line in enumerate(lines):
+        match: re.Match[str] | None = None
+        for pattern in patterns:
+            match = pattern.fullmatch(line)
+            if match is not None:
+                break
+        if match is None:
+            continue
+        observed_path = match.group("path")
+        normalized_path = observed_path.replace("\\", "/")
+        if not (
+            normalized_path.startswith("/")
+            or re.match(r"^[A-Za-z]:/", normalized_path)
+        ):
+            continue
+        relative = next(
+            (
+                candidate
+                for candidate in KNOWN_OUTPUT_RELATIVE_PATHS
+                if normalized_path.endswith(f"/{candidate}")
+            ),
+            None,
+        )
+        if relative is None:
+            continue
+        observed_roots.add(normalized_path[: -(len(relative) + 1)])
+        notifications[index] = (match, relative)
+    if len(observed_roots) > 1:
+        raise LogOutputRootFailure
+    if not observed_roots:
+        return text
+    for index, (match, relative) in notifications.items():
+        lines[index] = (
+            f"{match.group('prefix')}<OUTPUT>/{relative}{match.group('suffix')}"
+        )
+    return "\n".join(lines)
+
+
 def normalize_log(path: Path, artifact_root: Path, run_root: Path) -> str:
     text = path.read_text(encoding="utf-8", errors="replace")
     start_match = re.search(r"(?m)^.*Pre-processing\s*$", text)
@@ -282,6 +355,7 @@ def normalize_log(path: Path, artifact_root: Path, run_root: Path) -> str:
     lines = unwrap_stata_parenthesized_file_messages(lines)
     lines = unwrap_stata_file_messages(lines)
     excerpt = "\n".join(lines)
+    excerpt = redact_known_output_paths(excerpt)
     roots = sorted(
         {artifact_root, run_root, artifact_root.parent},
         key=lambda item: len(item.as_posix()),
@@ -321,8 +395,29 @@ def compare_logs(
 ) -> None:
     left_log = left_artifacts / left_manifest["artifacts"]["analysis_log"]
     right_log = right_artifacts / right_manifest["artifacts"]["analysis_log"]
-    left_text = normalize_log(left_log, left_artifacts, left_run)
-    right_text = normalize_log(right_log, right_artifacts, right_run)
+    normalized_logs: dict[str, str] = {}
+    for role, log_path, artifact_root, run_root in (
+        ("left", left_log, left_artifacts, left_run),
+        ("right", right_log, right_artifacts, right_run),
+    ):
+        try:
+            normalized_logs[role] = normalize_log(
+                log_path,
+                artifact_root,
+                run_root,
+            )
+        except LogOutputRootFailure:
+            failures.append(
+                {
+                    "category": "analysis_log_output_roots",
+                    "artifact": "analysis_log",
+                    "role": role,
+                }
+            )
+    if len(normalized_logs) != 2:
+        return
+    left_text = normalized_logs["left"]
+    right_text = normalized_logs["right"]
     if left_text == right_text:
         return
     left_lines = left_text.splitlines()
@@ -825,6 +920,24 @@ def main(argv: Iterable[str] | None = None) -> int:
                 ),
             )
             if args.comparison_mode == "correction":
+                role_map = {
+                    "left": "baseline",
+                    "right": "candidate_1",
+                }
+                for failure in baseline_comparison["failures"]:
+                    if (
+                        failure.get("category")
+                        in CORRECTION_MODE_INTEGRITY_CATEGORIES
+                    ):
+                        failures.append(
+                            {
+                                "category": failure["category"],
+                                "role": role_map.get(
+                                    failure.get("role"),
+                                    "run_set",
+                                ),
+                            }
+                        )
                 baseline_comparison["status"] = (
                     "unchanged"
                     if not baseline_comparison["failures"]
