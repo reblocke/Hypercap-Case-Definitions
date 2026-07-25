@@ -5,7 +5,7 @@
 [![PMC](https://img.shields.io/badge/PMC-PMC12739763-green)](https://pmc.ncbi.nlm.nih.gov/articles/PMC12739763/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Stata analysis code and a small CONSORT-style diagram notebook for the CHEST article **"The Consistency of Hypercapnic Respiratory Failure Case Definitions in Electronic Health Record Data."**
+Stata analysis code (and a small CONSORT-style diagram notebook) for the CHEST article **"The Consistency of Hypercapnic Respiratory Failure Case Definitions in Electronic Health Record Data."**
 
 ## Article Links
 
@@ -16,7 +16,7 @@ Stata analysis code and a small CONSORT-style diagram notebook for the CHEST art
 
 ## Project Summary
 
-This repository supports a study asking whether common electronic-health-record case definitions for hypercapnic respiratory failure identify the same patients. The analysis emulates 10 published definitions in 2022 adult emergency-department and inpatient encounters from the TriNetX Research Network, then compares agreement, cohort characteristics, mortality, and diagnosis-code performance against laboratory-based hypercapnia measures.
+This repository contains code for a study asking whether common electronic-health-record case definitions for hypercapnic respiratory failure identify the same patients. The analysis emulates 10 published definitions in 2022 adult emergency-department and inpatient encounters from the TriNetX Research Network, then compares agreement, cohort characteristics, and outcomes between the definitions.
 
 The repository intentionally contains code and documentation only. TriNetX-derived patient-level data are restricted and cannot be redistributed.
 
@@ -26,7 +26,7 @@ Article authors: Brian W. Locke, W. Wayne Richards, Ramkiran Gouripeddi, Jeanett
 
 Repository maintainer: Brian W. Locke, ORCID `0000-0002-3588-5238`, GitHub `@reblocke`.
 
-Support listed in the article includes the American Thoracic Society ASPIRE Fellowship and grant, NIH Ruth L. Kirschstein National Research Service Award `5T32HL105321`, the National Center for Advancing Translational Sciences, and the National Institute of General Medical Sciences. Use the article record for the authoritative funding and disclosure statement.
+Support for this research from the American Thoracic Society ASPIRE Fellowship and grant, NIH Ruth L. Kirschstein National Research Service Award `5T32HL105321`, the National Center for Advancing Translational Sciences, and the National Institute of General Medical Sciences. 
 
 ## Repository Contents
 
