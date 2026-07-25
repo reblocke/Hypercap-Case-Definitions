@@ -55,6 +55,7 @@ diagram-smoke:
 	@command -v dot >/dev/null || { echo "Graphviz dot is required." >&2; exit 1; }
 	dot -V
 	mkdir -p outputs/notebooks outputs/figures $(IPYTHON_DIR) $(JUPYTER_RUNTIME)
+	$(PYTHON) -c 'from hashlib import sha256; from pathlib import Path; source = Path("Case Definitions Consort.ipynb"); Path("outputs/notebooks/consort_source.sha256").write_text(sha256(source.read_bytes()).hexdigest() + "\n", encoding="ascii")'
 	IPYTHONDIR="$(IPYTHON_DIR)" JUPYTER_PATH="$(PYTHON_JUPYTER_PATH)" JUPYTER_RUNTIME_DIR="$(JUPYTER_RUNTIME)" $(JUPYTER) nbconvert \
 		--to notebook \
 		--execute "Case Definitions Consort.ipynb" \
@@ -62,7 +63,10 @@ diagram-smoke:
 		--output-dir outputs/notebooks \
 		--ExecutePreprocessor.timeout=120
 	test -s outputs/figures/consort_diagram.tiff
-	git diff --exit-code -- "Case Definitions Consort.ipynb"
+	$(PYTHON) -c 'from PIL import Image; image = Image.open("outputs/figures/consort_diagram.tiff"); assert image.format == "TIFF"; assert image.width > 0 and image.height > 0; image.verify(); image.close()'
+	test ! -e outputs/figures/consort_diagram.png
+	test ! -e outputs/figures/consort_diagram.tmp.tiff
+	$(PYTHON) -c 'from hashlib import sha256; from pathlib import Path; source = Path("Case Definitions Consort.ipynb"); expected = Path("outputs/notebooks/consort_source.sha256").read_text(encoding="ascii").strip(); observed = sha256(source.read_bytes()).hexdigest(); assert observed == expected, "Notebook source changed during execution."'
 
 input-approve:
 	$(PYTHON) scripts/input_manifest.py approve $(INPUT_APPROVE_ARGS)

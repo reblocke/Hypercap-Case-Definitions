@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import json
 import sys
 import tempfile
 import unittest
@@ -324,6 +325,25 @@ class PublicSurfaceUnitTests(unittest.TestCase):
 
 
 class RepositoryContractTests(unittest.TestCase):
+    def test_consort_diagram_uses_portable_tiff_conversion(self) -> None:
+        notebook = json.loads(
+            (ROOT / "Case Definitions Consort.ipynb").read_text(encoding="utf-8")
+        )
+        source = "\n".join(
+            "".join(cell.get("source", []))
+            for cell in notebook["cells"]
+            if cell.get("cell_type") == "code"
+        )
+
+        self.assertIn("from PIL import Image", source)
+        self.assertIn("format='png'", source)
+        self.assertNotIn("format='tiff'", source)
+        self.assertIn("format='TIFF'", source)
+        self.assertIn("dpi=(300, 300)", source)
+        self.assertIn("compression='tiff_lzw'", source)
+        self.assertIn("temporary_tiff.replace(tiff_path)", source)
+        self.assertIn("rendered_png.unlink(missing_ok=True)", source)
+
     def test_repository_contract(self) -> None:
         issues = audit.find_issues(ROOT)
         self.assertEqual([], issues, "\n".join(issues))
