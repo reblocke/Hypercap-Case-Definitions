@@ -1,0 +1,7 @@
+# Public, data-free reproducibility environment (Python 3.11)
+cffconvert
+graphviz
+ipykernel
+nbconvert
+openpyxl
+pillow

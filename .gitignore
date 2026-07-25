@@ -3,11 +3,15 @@ data/
 Data/
 *.dta
 *.sas7bdat
+full_db.manifest.json
 *.csv
 *.xlsx
 *.xls
 *.xlsm
 !data_dictionary.csv
+!metadata/output_manifest.csv
+!metadata/phenotype_definitions.csv
+!metadata/stata_dependencies.csv
 
 # Generated outputs
 outputs/
