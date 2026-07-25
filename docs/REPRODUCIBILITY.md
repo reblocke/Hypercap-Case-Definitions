@@ -156,6 +156,11 @@ normalized logs. It revalidates the input and approval immediately before
 reporting and atomically replaces any prior comparison report, so a stale pass
 cannot survive an incomplete comparison. It reports only discrepancy
 categories, locations, and hashes—not cell values or row-level content.
+Absolute paths to known expected artifacts embedded in Stata file notifications
+are normalized only when they share one artifact root, so relocating a
+preserved run into another ignored archive does not create a path-only
+difference. Inconsistent roots, unknown paths, and substantive transcript
+differences remain comparison failures.
 In equivalence mode, baseline equivalence and candidate repeatability are
 separate required conditions. In correction mode, historical differences are
 reported as correction impact and do not themselves fail the report, but
