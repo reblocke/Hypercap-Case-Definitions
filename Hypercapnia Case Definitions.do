@@ -508,10 +508,16 @@ forval i = 1/10 {
 			} //Otherwise skip, so we're just doing the lower  corners
         }
         else {
-            // Calculate kappa for def`i' and def`j'
-			kap def`i' def`j'
-            // Retrieve the kappa statistic and store it in the matrix
-            matrix abg_kappa_results[`i', `j'] = r(kappa)
+            // Kappa is undefined when either definition is constant in the subgroup.
+            quietly summarize def`i', meanonly
+            local def_i_varies = r(N) > 0 & r(min) < r(max)
+            quietly summarize def`j', meanonly
+            local def_j_varies = r(N) > 0 & r(min) < r(max)
+            if `def_i_varies' & `def_j_varies' {
+                kap def`i' def`j'
+                matrix abg_kappa_results[`i', `j'] = r(kappa)
+            }
+            else matrix abg_kappa_results[`i', `j'] = .
         }
     }
 }
@@ -561,10 +567,16 @@ forval i = 1/10 {
 			} //Otherwise skip, so we're just doing the lower  corners
         }
         else {
-            // Calculate kappa for def`i' and def`j'
-			kap def`i' def`j'
-            // Retrieve the kappa statistic and store it in the matrix
-            matrix vbg_kappa_results[`i', `j'] = r(kappa)
+            // Kappa is undefined when either definition is constant in the subgroup.
+            quietly summarize def`i', meanonly
+            local def_i_varies = r(N) > 0 & r(min) < r(max)
+            quietly summarize def`j', meanonly
+            local def_j_varies = r(N) > 0 & r(min) < r(max)
+            if `def_i_varies' & `def_j_varies' {
+                kap def`i' def`j'
+                matrix vbg_kappa_results[`i', `j'] = r(kappa)
+            }
+            else matrix vbg_kappa_results[`i', `j'] = .
         }
     }
 }
@@ -609,10 +621,16 @@ forval i = 1/10 {
 			} //Otherwise skip, so we're just doing the lower  corners
         }
         else {
-            // Calculate kappa for def`i' and def`j'
-			kap def`i' def`j'
-            // Retrieve the kappa statistic and store it in the matrix
-            matrix abg_vbg_kappa_results[`i', `j'] = r(kappa)
+            // Kappa is undefined when either definition is constant in the subgroup.
+            quietly summarize def`i', meanonly
+            local def_i_varies = r(N) > 0 & r(min) < r(max)
+            quietly summarize def`j', meanonly
+            local def_j_varies = r(N) > 0 & r(min) < r(max)
+            if `def_i_varies' & `def_j_varies' {
+                kap def`i' def`j'
+                matrix abg_vbg_kappa_results[`i', `j'] = r(kappa)
+            }
+            else matrix abg_vbg_kappa_results[`i', `j'] = .
         }
     }
 }

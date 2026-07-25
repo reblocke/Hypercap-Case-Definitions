@@ -564,7 +564,7 @@ class AnalysisBodyLockTests(unittest.TestCase):
         end = text.index(end_marker, start) + len(end_marker)
         body = text[start:end] + "\n"
         observed = hashlib.sha256(body.encode("utf-8")).hexdigest()
-        expected = "076a04d2251058d3fe6ab72d3e4a6c9eecbc52312183c07ed50e9e6cc70d89ee"
+        expected = "7eb9c366e27c1e146ca0fa09807fbf1fe9bf95ee8eed6b598b68c0e4a17484b2"
         self.assertEqual(expected, observed)
         self.assertNotIn("in 1/200", body)
         self.assertIn(
@@ -578,6 +578,15 @@ class AnalysisBodyLockTests(unittest.TestCase):
         self.assertIn("keep if abg_vbg_confusion_matrix == 1", body)
         self.assertIn("keep if abg_vbg_confusion_matrix == 2", body)
         self.assertIn("keep if abg_vbg_confusion_matrix == 3", body)
+        self.assertEqual(
+            3,
+            body.count(
+                "Kappa is undefined when either definition is constant "
+                "in the subgroup."
+            ),
+        )
+        self.assertEqual(3, body.count("local def_i_varies = r(N) > 0"))
+        self.assertEqual(3, body.count("local def_j_varies = r(N) > 0"))
         self.assertEqual(2, body.count("assert r(N) == 4"))
         self.assertIn("Figure 3 Prob Hypercap ICD.png", body)
         self.assertIn("Location - e-Figure 5 Prob Hypercap ICD.png", body)
