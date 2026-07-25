@@ -20,16 +20,19 @@ in Electronic Health Record Data."**
 
 This repository contains code supporting a study asking whether common
 electronic-health-record case definitions for hypercapnic respiratory failure
-identify the same patients. The analysis emulates 10 published definitions in
-2022 adult emergency-department and inpatient encounters from the TriNetX
-Research Network, then compares agreement, cohort characteristics, mortality,
-and diagnosis-code performance against laboratory-based hypercapnia measures.
+identify the same patients. The analysis applies study-specific
+operationalizations based on 10 published definitions to 2022 adult
+emergency-department and inpatient encounters from the TriNetX Research
+Network, then compares agreement, cohort characteristics, mortality, and
+diagnosis-code performance against laboratory-based hypercapnia measures.
+The implemented rules and their source-alignment status are documented in
+[`docs/SCIENTIFIC_ALIGNMENT.md`](docs/SCIENTIFIC_ALIGNMENT.md).
 
-The repository intentionally contains code and documentation only.
-TriNetX-derived patient-level data are restricted and cannot be redistributed.
-The public repository begins with an already-prepared `full_db.dta`; it does
-not reproduce the upstream TriNetX query, export, code-list construction,
-laboratory windowing, or analytic-dataset assembly.
+This repository contains code and documentation only; it does not include
+patient-level data. The restricted workflow begins with a locally supplied,
+analysis-ready `full_db.dta`. It does not reproduce the upstream TriNetX query,
+export, code-list construction, laboratory windowing, or analytic-dataset
+assembly.
 
 ## Authors, Funding, and Disclosures
 
@@ -47,7 +50,7 @@ article record for the authoritative funding and disclosure statement.
 
 | Path | Purpose |
 | --- | --- |
-| `Hypercapnia Case Definitions.do` | Main Stata workflow for cohort filtering, case-definition emulation, agreement analyses, descriptive tables, Cox models, diagnosis-code performance, and figures. |
+| `Hypercapnia Case Definitions.do` | Main Stata workflow for cohort filtering, case-definition operationalization, agreement analyses, descriptive tables, Cox models, diagnosis-code performance, and figures. |
 | `scripts/input_manifest.py` | One-time restricted-input approval and validation for the adjacent local manifest. |
 | `scripts/run_stata.sh`, `scripts/stata_run.py` | Guarded restricted-data runner with unique run folders, provenance capture, and artifact-completeness checks. |
 | `scripts/compare_stata_runs.py` | Value-suppressing equivalence or correction-impact comparator for one legacy baseline and two candidate runs. |
@@ -59,29 +62,33 @@ article record for the authoritative funding and disclosure statement.
 | `docs/SCIENTIFIC_ALIGNMENT.md` | Resolved and unresolved final-article alignment decisions. |
 | `metadata/` | Phenotype approval inventory, upstream dependency record, Stata dependency inventory, and generated-output manifest. |
 | `CITATION.cff` | Structured citation metadata for the repository and the preferred CHEST article citation. |
-| `llms.txt` | Concise machine-readable project index for search, retrieval, and future coding agents. |
-| `AGENTS.md` | Repository-specific working rules for future coding agents. |
+| `llms.txt` | Concise machine-readable project index for search and retrieval. |
+| `AGENTS.md` | Repository-specific instructions for automated coding tools. |
 
 ## Data Requirements
 
-The Stata workflow expects a restricted TriNetX encounter-level Stata dataset named:
+The Stata workflow requires a restricted TriNetX encounter-level file named
+`full_db.dta`. Its default location is:
 
 ```text
 data/private/full_db.dta
 ```
 
+Set `INPUT_ROOT` in the supported `make` commands to use another approved
+directory.
+
 The dataset is one row per emergency-department or inpatient encounter and must contain first-calendar-day laboratory, diagnosis, procedure, demographic, comorbidity, location, and mortality variables described in the data dictionary. The analysis uses TriNetX calendar-day lab resolution; first-day windows follow that convention.
 
 TriNetX data must be re-requested under an investigator's institutional TriNetX agreement. Do not commit source data, derived row-level data, local exports, or other patient-level files to this repository.
 
-The approved restricted input is bound to upstream producer commit
-`44f49748d415e92b7d50b50d86b8fdea29f6cb07` and the repository-defined
-observed schema `hypercapnia-full-db-v1`. This owner-approved assignment is
-based on historical evidence; the upstream build did not preserve source-file
-hashes or a clean-worktree attestation and is not reproduced here. The selected
-derivations of `hypercap_on_abg` and `hypercap_resp_failure` were separately
-verified from the producer-commit Git object; other upstream derivations remain
-outside the verified scope.
+The approved input record identifies upstream producer commit
+`44f49748d415e92b7d50b50d86b8fdea29f6cb07` and schema
+`hypercapnia-full-db-v1`. This provenance is based on historical repository
+evidence rather than a reproduced upstream build; source-file hashes and
+clean-worktree status were not preserved. The derivations of `hypercap_on_abg`
+and `hypercap_resp_failure` were separately verified from the producer commit;
+other upstream derivations remain outside the verified scope. See
+[`docs/REPRODUCIBILITY.md`](docs/REPRODUCIBILITY.md) for the complete boundary.
 
 ## Workflow
 
@@ -109,6 +116,8 @@ The diagram notebook uses fixed published aggregate counts. Rendering it does
 not reproduce those counts from the restricted analysis data and does not
 validate the article's numerical results. See
 [`docs/REPRODUCIBILITY.md`](docs/REPRODUCIBILITY.md) for the complete boundary.
+`make diagram-smoke` uses the active locked Python 3.11 environment and requires
+the system Graphviz `dot` executable.
 
 ### Restricted Stata Analysis
 
@@ -126,12 +135,10 @@ make input-approve \
   APPROVE_RESTRICTED_INPUT=YES
 ```
 
-This writes ignored `full_db.manifest.json` adjacent to the restricted data.
-It records only `schema_version`, `logical_name`, `size_bytes`, `sha256`,
-`approved_at_utc`, `upstream_repository`, `producer_commit`,
-`input_schema_version`, and `data_dictionary_sha256`; it records no local path
-or row-level value. An existing approval is not overwritten unless
-`REPLACE_APPROVED_INPUT=YES` is also supplied.
+This writes an ignored `full_db.manifest.json` beside the restricted data. The
+manifest records the input hash and approved provenance and schema, but no local
+path or row-level value. Replacing an existing manifest also requires
+`REPLACE_APPROVED_INPUT=YES`.
 
 Then run the canonical guarded workflow from the repository root:
 
@@ -143,17 +150,13 @@ make stata-run \
 ```
 
 `INPUT_ROOT` is the directory containing `full_db.dta`. The runner creates a
-unique run directory, records hashes and the Stata environment in an ignored
-manifest, verifies the adjacent approval and input contract before launch and
-again after analysis, and writes `SUCCESS` only after the Stata process exits
-zero, Stata reports completion, and all 40 required artifacts are present and
-nonempty. Existing run directories are never reused.
+unique ignored run directory, records provenance, verifies the approval and
+input contract before and after analysis, and writes `SUCCESS` only after Stata
+completes successfully and the required artifact inventory is complete.
+Existing run directories are never reused.
 
-`make stata-run` is the sole supported scientific execution interface. The
-internal legacy argument mode is retained only to interpret preserved
-historical validation evidence and must not be used to create new scientific
-runs. Run the command from the intended checkout; the runner rejects an
-`ANALYSIS_ROOT` that resolves to a different checkout.
+`make stata-run` is the sole supported scientific execution interface. Run it
+from the intended checkout.
 
 To assess a change, reuse the preserved legacy baseline, run the guarded
 candidate twice in clean isolated checkouts, then compare them:
@@ -167,53 +170,32 @@ make stata-compare \
 ```
 
 The default `COMPARISON_MODE=equivalence` requires the baseline and candidates
-to match. For an owner-approved scientific correction, set
-`COMPARISON_MODE=correction`; the historical comparison is then reported as
-correction impact, while the two candidate runs must still match exactly:
+to match. For a documented, owner-approved scientific correction, add
+`COMPARISON_MODE=correction` to the same command. Correction mode reports every
+baseline-to-candidate difference as correction impact rather than treating the
+difference itself as a failure; a passing report is not evidence that individual
+differences were scientifically approved. The candidate runs must still match
+each other, and all evidence-integrity checks must pass.
 
-```bash
-make stata-compare \
-  COMPARISON_MODE=correction \
-  BASELINE_RUN="outputs/validation/baseline" \
-  CANDIDATE_RUN_1="outputs/validation/candidate-1" \
-  CANDIDATE_RUN_2="outputs/validation/candidate-2" \
-  INPUT_ROOT="/approved/restricted/hypercapnia"
-```
-
-The comparator maps the three intentionally renamed Figure 3, e-Figure 5, and
-both-test heatmap files to their historical names when reading a legacy
-baseline.
-
-Before comparing artifacts, the comparator validates the current adjacent
-approval, requires a legacy baseline, requires two guarded candidates whose
-approval references match the current manifest, matching nonempty candidate
-commit identifiers, and distinct nonempty candidate run identifiers. Each
-artifact root must be contained within and distinct from its run directory, and
-the comparator rechecks the complete artifact and control inventory on disk
-rather than trusting the manifest's cached inventory. It also rehashes the
-current input and checks it against every run manifest even when the optional
-expected-hash pin is omitted. It then checks workbook values and structure,
-decoded PNG pixels, required Stata graph presence, normalized analysis logs,
-dependencies, input identity, and candidate repeatability; immediately before
-reporting, it revalidates that the input and approval did not change during
-comparison. Its detailed report remains under ignored `outputs/`. The latest
-sanitized validation outcome is recorded in
+The comparator requires one legacy baseline and two distinct guarded candidates
+from the same commit. It revalidates the approved input and run evidence, then
+compares workbook contents, decoded image pixels, required Stata graphs,
+normalized logs, dependencies, and candidate repeatability. The complete
+protocol is described in
+[`docs/REPRODUCIBILITY.md`](docs/REPRODUCIBILITY.md). Detailed reports remain
+under ignored `outputs/`; sanitized validation outcomes are recorded in
 [`docs/VALIDATION.md`](docs/VALIDATION.md).
 
-The exact publication-time package versions are unresolved. The code-derived
-dependency inventory is in `metadata/stata_dependencies.csv`.
-
-`make diagram-smoke` invokes nbconvert with an explicit notebook output format
-and selects the `python3` kernelspec from the active locked Python environment,
-rather than an unrelated user-level kernel. The notebook also requires the
-system Graphviz `dot` executable.
+The repository does not establish exact publication-time Stata package
+versions. The code-derived dependency inventory marks them `UNRESOLVED` and
+lists the packages required by the current analysis.
 
 ## Outputs
 
 Generated outputs are written under ignored `outputs/` folders and should not
 be committed as source files. The guarded Stata workflow produces unique
-`outputs/stata/<run_id>/` folders containing a sanitized manifest, status and
-dependency records, logs, copied do-files, tables, heatmaps, spline figures,
+`outputs/stata/<run_id>/` folders containing a local provenance manifest, status
+and dependency records, logs, copied do-files, tables, heatmaps, spline figures,
 and temporary Stata graph files. The notebook writes the CONSORT diagram under
 `outputs/figures/`.
 
