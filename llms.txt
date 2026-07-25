@@ -51,8 +51,8 @@ Key files:
 - Case Definitions Consort.ipynb: Graphviz diagram notebook for the case-definition flow figure.
 - data_dictionary.md and data_dictionary.csv: input, derived-variable, and case-definition documentation.
 - docs/REPRODUCIBILITY.md: public, restricted downstream, and upstream reproducibility boundary.
-- docs/VALIDATION.md: sanitized result of the clean legacy-baseline and repeated-candidate restricted validation.
-- docs/SCIENTIFIC_ALIGNMENT.md: approved, pending-validation, and unresolved final-article versus current-code decisions.
+- docs/VALIDATION.md: sanitized equivalence, correction-impact, and repeatability results from clean restricted validation runs.
+- docs/SCIENTIFIC_ALIGNMENT.md: resolved and unresolved final-article versus current-code decisions.
 - metadata/: phenotype approval inventory, upstream dependency record, Stata dependency inventory, and output manifest.
 - CITATION.cff: structured repository and article citation metadata.
 - AGENTS.md: repo-specific instructions for future coding agents.

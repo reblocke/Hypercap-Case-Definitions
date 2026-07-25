@@ -46,8 +46,8 @@ Support listed in the article includes the American Thoracic Society ASPIRE Fell
 | `Case Definitions Consort.ipynb` | Python/Graphviz notebook for the CONSORT-style case-definition diagram. |
 | `data_dictionary.md`, `data_dictionary.csv` | Human- and machine-readable documentation for expected input and derived variables. |
 | `docs/REPRODUCIBILITY.md` | Public, restricted downstream, and upstream reproducibility boundaries. |
-| `docs/VALIDATION.md` | Sanitized baseline-equivalence and repeatability result for the guarded Stata workflow. |
-| `docs/SCIENTIFIC_ALIGNMENT.md` | Approved, pending-validation, and unresolved final-article alignment decisions. |
+| `docs/VALIDATION.md` | Sanitized equivalence, correction-impact, and repeatability results for the guarded Stata workflow. |
+| `docs/SCIENTIFIC_ALIGNMENT.md` | Resolved and unresolved final-article alignment decisions. |
 | `metadata/` | Phenotype approval inventory, upstream dependency record, Stata dependency inventory, and generated-output manifest. |
 | `CITATION.cff` | Structured citation metadata for the repository and the preferred CHEST article citation. |
 | `llms.txt` | Concise machine-readable project index for search, retrieval, and future coding agents. |

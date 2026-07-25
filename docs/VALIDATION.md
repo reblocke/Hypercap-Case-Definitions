@@ -5,9 +5,10 @@
 This summary records the HCD-000B downstream validation completed on
 2026-07-22 Mountain Time (2026-07-23 UTC), the review-remediation validation
 completed on 2026-07-23 Mountain Time, and the approved-input and
-evidence-hardening validations completed on 2026-07-24 Mountain Time. It
-intentionally omits restricted input locations and hashes, dataset dimensions,
-result values, logs, and detailed comparison evidence.
+evidence-hardening validations completed on 2026-07-24 Mountain Time. It also
+records the HCD-001 scientific-correction validation completed on 2026-07-24
+Mountain Time. It intentionally omits restricted input locations and hashes,
+dataset dimensions, result values, logs, and detailed comparison evidence.
 
 The validated analysis commits were:
 
@@ -18,7 +19,9 @@ The validated analysis commits were:
 - approved-input candidate:
   `85076dc76c4de246c7f390c71d91ce54e8a16750`;
 - evidence-hardening candidate:
-  `ccbea198694b2e6c97c1e233686883c7f6742feb`.
+  `ccbea198694b2e6c97c1e233686883c7f6742feb`;
+- HCD-001 scientific-correction candidate:
+  `9f8fecd2384edd3ae3fd4b0c8ecbc8536769bc19`.
 
 The restricted artifact was observed in upstream checkout
 `1185a6bc9957a02cb24be5f1f7fa10c48d8a4c13`. Subsequent owner adjudication
@@ -52,13 +55,16 @@ hashes and observed version headers remain in ignored run manifests.
 | Adjacent input approval before and after each new run | Pass |
 | Two clean approved-input candidate executions and complete output gates | Pass |
 | Two clean evidence-hardening candidate executions and zero process exits | Pass |
+| Two clean HCD-001 candidate executions and complete output gates | Pass |
+| HCD-001 aggregate-definition cross-checks in both runs | Pass |
 | Live artifact-root, run-ID, and completion-control comparison gates | Pass |
 | Input identity before, across, and after the three runs | Pass |
-| Baseline versus candidate semantic workbook comparison | Pass |
-| Baseline versus candidate decoded PNG-pixel comparison | Pass |
+| HCD-000B baseline versus candidate semantic workbook comparison | Pass |
+| HCD-000B baseline versus candidate decoded PNG-pixel comparison | Pass |
 | Required Stata graph presence and copied-do integrity | Pass |
 | Path- and wrapper-normalized analysis transcript comparison | Pass |
 | Candidate run-to-run repeatability | Pass |
+| HCD-001 correction-impact classification | Pass with documented changes |
 
 The transcript comparison removes the legacy row listing, generated output
 paths, Stata line wrapping caused by path length, prompt-only blank lines, and
@@ -134,6 +140,48 @@ two evidence-hardening runs were repeatable, and the current approved input
 remained unchanged. The final comparison report contained no failures;
 detailed evidence remains ignored and local.
 
+## HCD-001 Scientific-Correction Validation
+
+The pre-correction public implementation was preserved as annotated tag
+`hcd-000b-historical`. The exact HCD-001 candidate commit
+`9f8fecd2384edd3ae3fd4b0c8ecbc8536769bc19` was then executed twice from
+separate clean isolated checkouts against the same approved restricted input,
+using distinct run identifiers and directories.
+
+Both Stata processes exited zero. Both runs passed the fresh status,
+completion, approval-revalidation, input-contract, and complete 40-artifact
+gates. In both runs, the guarded contract confirmed that the transparent
+Bülbül and Meservey simulated definitions matched their verified upstream
+aggregate flags. The two candidate runs matched for every semantic workbook
+cell, decoded PNG pixel, required graph presence check, normalized analysis
+log, dependency record, input reference, and copied analysis file.
+
+Correction mode classified the historical comparison as changed while
+requiring exact candidate repeatability and all evidence-integrity checks. The
+changed artifact set included:
+
+- the Calvo and Wilson definition-summary workbooks;
+- the four overall definition-overlap heatmaps;
+- the three mutually exclusive testing-strategy heatmaps;
+- the workup and location summary workbooks;
+- the four regional definition-overlap heatmaps; and
+- the normalized analysis transcript.
+
+The Bülbül and Meservey summary workbooks remained unchanged, consistent with
+their new transparent rules matching the verified upstream aggregates. The
+Vonderbank and Chung boundary corrections did not change their summary
+workbooks for this input.
+
+All seven spline PNGs also changed relative to the historical baseline. The
+corresponding fitted-model and prediction-output transcript segments were
+identical, and the two corrected runs produced identical spline pixels. This
+is consistent with the pre-existing SA-007 concern: the plot filters on the
+original `paco2_rounded` field after `xblc` creates the prediction grid, so
+earlier row-order changes can affect which predicted points are drawn. SA-007
+therefore remains unresolved and no unapproved plotting change was made.
+Detailed cell locations, hashes, images, logs, and run evidence remain ignored
+and local.
+
 ## Interpretation and Boundary
 
 These checks support that HCD-000B preserves the baseline downstream results
@@ -147,8 +195,16 @@ evidence-hardening validation supports that the exact `ccbea19` implementation
 also enforces zero Stata process exits, distinct run evidence, contained
 artifact roots, and live completion controls.
 
+The HCD-001 validation supports that the exact `9f8fecd` implementation applies
+the owner-approved SA-001, SA-003, SA-004, SA-005, SA-006, SA-010, and SA-011
+decisions and is repeatable in the observed environment. Correction-mode
+`PASS` means that the historical impact was recorded and the corrected
+candidates were repeatable; it does not mean that the corrected artifacts are
+equivalent to the historical baseline.
+
 This is not proof that the available file is the exact publication input, does
 not reproduce upstream TriNetX construction, and does not resolve the
-scientific-alignment items documented in `SCIENTIFIC_ALIGNMENT.md`. Detailed
-run manifests, dependency records, comparison reports, and generated outputs
-remain local under ignored `outputs/` paths.
+remaining SA-002, SA-007, SA-008, or SA-009 scientific-alignment items
+documented in `SCIENTIFIC_ALIGNMENT.md`. Detailed run manifests, dependency
+records, comparison reports, and generated outputs remain local under ignored
+`outputs/` paths.

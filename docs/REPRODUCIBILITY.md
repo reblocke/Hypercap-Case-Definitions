@@ -194,10 +194,10 @@ variables remain unavailable for review in this repository.
 The ten definitions in `metadata/phenotype_definitions.csv` distinguish six
 owner-approved simulated rules from four definitions that remain unapproved.
 Approval applies only to the documented simulated rules, not to unavailable
-source-study exclusions, settings, or repeat-measurement criteria. Approved,
-pending-validation, and unresolved decisions are recorded in
-`docs/SCIENTIFIC_ALIGNMENT.md`. Public validation must preserve unresolved
-items rather than infer an additional scientific resolution.
+source-study exclusions, settings, or repeat-measurement criteria. Resolved and
+unresolved decisions are recorded in `docs/SCIENTIFIC_ALIGNMENT.md`. Public
+validation must preserve unresolved items rather than infer an additional
+scientific resolution.
 
 ## Data-Safety Boundary
 
