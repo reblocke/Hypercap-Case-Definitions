@@ -502,6 +502,31 @@ class InputValidationSourceTests(unittest.TestCase):
         self.assertLess(cleanup_at, exit_at)
         self.assertNotIn("exit _rc", text[failure_at:exit_at])
 
+    def test_verified_upstream_aggregates_are_contract_checked(self) -> None:
+        text = (ROOT / "stata" / "validate_input.do").read_text(encoding="utf-8")
+        self.assertIn(
+            "cond(missing(hypercap_on_abg), 0, hypercap_on_abg) != ///",
+            text,
+        )
+        self.assertIn("(paco2 >= 45 & !missing(paco2))", text)
+        self.assertIn(
+            "cond(missing(hypercap_resp_failure), 0, ///",
+            text,
+        )
+        self.assertIn(
+            "(ohs_code == 1 | has_j9602 == 1 | has_j9612 == 1 | ///",
+            text,
+        )
+        aggregate_block = text[
+            text.index("quietly count if cond(missing(hypercap_on_abg)") :
+            text.index("quietly count if has_abg == 0")
+        ]
+        self.assertEqual(2, aggregate_block.count('"aggregate_definition"'))
+        self.assertEqual(
+            2,
+            aggregate_block.count("if `violations' > 0 local ++hard_failures"),
+        )
+
 
 class AnalysisBodyLockTests(unittest.TestCase):
     def test_diagnostic_program_is_locked(self) -> None:
@@ -526,22 +551,37 @@ class AnalysisBodyLockTests(unittest.TestCase):
             hashlib.sha256(mutated.encode("utf-8")).hexdigest(),
         )
 
-    def test_scientific_body_matches_hcd_000a_except_row_listing(self) -> None:
+    def test_scientific_body_matches_approved_hcd_001_correction(self) -> None:
         import hashlib
 
         text = (ROOT / stata_run.MAIN_DO).read_text(encoding="utf-8")
         start_marker = "/* ------------------\n   Pre-processing"
         end_marker = (
-            "graph export \"`outdir'/Location - Figure S3 Prob Hypercap ICD.png\", "
+            "graph export \"`outdir'/Location - e-Figure 5 Prob Hypercap ICD.png\", "
             'name("Graph") width(3200) replace'
         )
         start = text.index(start_marker)
         end = text.index(end_marker, start) + len(end_marker)
         body = text[start:end] + "\n"
         observed = hashlib.sha256(body.encode("utf-8")).hexdigest()
-        expected = "9df22eae3edbb3bb369218550452d3023b86bec96143da5260906031eaa493b6"
+        expected = "076a04d2251058d3fe6ab72d3e4a6c9eecbc52312183c07ed50e9e6cc70d89ee"
         self.assertEqual(expected, observed)
         self.assertNotIn("in 1/200", body)
+        self.assertIn(
+            "gen def4 = (paco2 > 45 & abg_ph < 7.35 & niv_proc == 1)",
+            body,
+        )
+        self.assertIn("gen def5 = (paco2 >= 45) if !missing(paco2)", body)
+        self.assertIn("gen def8 = (paco2 >= 50", body)
+        self.assertIn("vbg_ph > 7.35", body)
+        self.assertIn("abg_ph <= 7.45", body)
+        self.assertIn("keep if abg_vbg_confusion_matrix == 1", body)
+        self.assertIn("keep if abg_vbg_confusion_matrix == 2", body)
+        self.assertIn("keep if abg_vbg_confusion_matrix == 3", body)
+        self.assertEqual(2, body.count("assert r(N) == 4"))
+        self.assertIn("Figure 3 Prob Hypercap ICD.png", body)
+        self.assertIn("Location - e-Figure 5 Prob Hypercap ICD.png", body)
+        self.assertIn("version 17.0", text)
 
 
 if __name__ == "__main__":

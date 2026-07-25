@@ -18,7 +18,9 @@ INPUT_FILENAME = "full_db.dta"
 MANIFEST_FILENAME = "full_db.manifest.json"
 MANIFEST_SCHEMA_VERSION = 1
 APPROVED_VERIFICATION_BASIS = "scientific_owner_approved_historical_evidence"
-APPROVED_VERIFICATION_SCOPE = "artifact_producer_and_observed_schema_only"
+APPROVED_VERIFICATION_SCOPE = (
+    "artifact_producer_observed_schema_and_selected_phenotype_derivations"
+)
 MANIFEST_KEYS = frozenset(
     {
         "schema_version",

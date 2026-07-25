@@ -16,6 +16,7 @@ Data boundary:
 - The public repository starts with the prepared full_db.dta and does not reproduce the upstream query, export, code lists, laboratory windows, or analytic-dataset construction.
 - The approved restricted input is bound to upstream producer commit 44f49748d415e92b7d50b50d86b8fdea29f6cb07 and observed schema hypercapnia-full-db-v1 through owner-approved historical evidence.
 - The historical upstream build did not preserve source-file hashes or clean-worktree attestation and is not reproduced here.
+- The hypercap_on_abg and hypercap_resp_failure derivations were separately verified from the approved producer-commit Git object; other upstream variable derivations remain outside the verified scope.
 - Do not commit raw data, derived row-level data, local workbooks, generated .dta files, logs, or outputs.
 - Use the PMC/NLM article link for accessible article text; do not copy publisher-hosted article text into repository docs.
 
@@ -25,6 +26,7 @@ Workflow:
 - Restricted input approval command: make input-approve
 - Guarded restricted Stata command: make stata-run
 - Restricted comparison command: make stata-compare
+- Restricted scientific-correction comparison: make stata-compare COMPARISON_MODE=correction
 - Public Python version: 3.11
 - Install locked public dependencies with: python3 -m pip install --require-hashes -r requirements.txt
 - The guarded runner accepts INPUT_ROOT, OUTPUT_ROOT, STATA_BIN, RUN_ID, and optional EXPECTED_INPUT_SHA256 make variables.
@@ -44,14 +46,14 @@ Key files:
 - Hypercapnia Case Definitions.do: Stata workflow for case-definition emulation, agreement analyses, tables, and figures.
 - scripts/run_stata.sh and scripts/stata_run.py: restricted-data runner, provenance capture, and output-completeness gate.
 - scripts/input_manifest.py: adjacent restricted-input approval and validation.
-- scripts/compare_stata_runs.py: baseline-equivalence and candidate-repeatability comparator that suppresses result values.
+- scripts/compare_stata_runs.py: baseline-equivalence or correction-impact and candidate-repeatability comparator that suppresses result values.
 - stata/: Stata dependency preflight, input-contract validation, and neutral driver.
 - Case Definitions Consort.ipynb: Graphviz diagram notebook for the case-definition flow figure.
 - data_dictionary.md and data_dictionary.csv: input, derived-variable, and case-definition documentation.
 - docs/REPRODUCIBILITY.md: public, restricted downstream, and upstream reproducibility boundary.
 - docs/VALIDATION.md: sanitized result of the clean legacy-baseline and repeated-candidate restricted validation.
-- docs/SCIENTIFIC_ALIGNMENT.md: unresolved final-article versus current-code differences.
-- metadata/: code-derived phenotype inventory, upstream dependency record, Stata dependency inventory, and output manifest.
+- docs/SCIENTIFIC_ALIGNMENT.md: approved, pending-validation, and unresolved final-article versus current-code decisions.
+- metadata/: phenotype approval inventory, upstream dependency record, Stata dependency inventory, and output manifest.
 - CITATION.cff: structured repository and article citation metadata.
 - AGENTS.md: repo-specific instructions for future coding agents.
 
@@ -62,7 +64,7 @@ Outputs:
 
 Agent cautions:
 - Preserve analysis logic unless explicitly asked to change the scientific methods.
-- Treat phenotype metadata as a code-derived, unapproved inventory.
+- Preserve the distinction between the six owner-approved simulated phenotype rules and the four unresolved definitions in the phenotype metadata.
 - Do not convert blocked, draft, or needs_review variable-level derivations or scientific items to verified without source evidence and owner approval.
 - Keep path changes repo-root relative and argument-driven.
 - Maintain the data dictionary when adding or renaming variables.

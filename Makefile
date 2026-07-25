@@ -17,6 +17,7 @@ BASELINE_RUN ?=
 CANDIDATE_RUN_1 ?=
 CANDIDATE_RUN_2 ?=
 COMPARISON_REPORT ?= outputs/validation/comparison_report.json
+COMPARISON_MODE ?= equivalence
 
 STATA_RUN_ARGS = --input-root "$(INPUT_ROOT)" --output-root "$(OUTPUT_ROOT)" --analysis-root "$(ANALYSIS_ROOT)" --stata-mode "$(STATA_MODE)"
 INPUT_APPROVE_ARGS = --input-root "$(INPUT_ROOT)" --analysis-root "$(ANALYSIS_ROOT)" --approve "$(APPROVE_RESTRICTED_INPUT)"
@@ -79,5 +80,6 @@ stata-compare:
 		--candidate-run-2 "$(CANDIDATE_RUN_2)" \
 		--input-file "$(INPUT_ROOT)/full_db.dta" \
 		--analysis-root "$(ANALYSIS_ROOT)" \
+		--comparison-mode "$(COMPARISON_MODE)" \
 		$(if $(strip $(EXPECTED_INPUT_SHA256)),--expected-input-sha256 "$(EXPECTED_INPUT_SHA256)",) \
 		--report "$(COMPARISON_REPORT)"

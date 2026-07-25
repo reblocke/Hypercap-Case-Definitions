@@ -231,37 +231,39 @@ label values def3 ouanes_lab
 
 /* Hospitalized / ED  (No ICU requirement) */ 
 //Segreelles-Calvo PaCO2 over 45 and pH <7.35  & Received NIV
-gen def4 = (def3 == 1 & niv_proc == 1) if !missing(paco2, abg_ph, niv_proc)
+gen def4 = (paco2 > 45 & abg_ph < 7.35 & niv_proc == 1) if !missing(paco2, abg_ph, niv_proc)
 replace def4 = 0 if missing(def4)
 label variable def4 "Calvo"
 label define segreelles_lab 1 "Calvo"
 label values def4 segreelles_lab
 
 //Reviewers Bulbul is NOT the same as Ouanes-Besbes **
-//Bulbul - just PaCO2 >= 45 mmHg 
-gen def5 = hypercap_on_abg
+//Bulbul simulated criterion - just PaCO2 >= 45 mmHg
+gen def5 = (paco2 >= 45) if !missing(paco2)
 replace def5 = 0 if missing(def5)
+assert def5 == cond(missing(hypercap_on_abg), 0, hypercap_on_abg)
 label variable def5 "Bülbül"
 label define bulbul_lab 1 "Bülbül"
 label values def5 bulbul_lab
 
 
 //Meservey et al 2020:  Admit with code for hypercapnic respiratory failure, exclude Advanced cancer, trauma, stroke, seizure, cardiac arrest, advanced neurologic disease, serious non-pulmonary illness. 
-gen def6 = hypercap_resp_failure
-replace def6 = 0 if missing(def6)
+gen def6 = 0
+replace def6 = 1 if ohs_code == 1 | has_j9602 == 1 | has_j9612 == 1 | has_j9622 == 1 | has_j9692 == 1
+assert def6 == cond(missing(hypercap_resp_failure), 0, hypercap_resp_failure)
 label variable def6 "Meservey"
 label define meservey_lab 1 "Meservey" 
 label values def6 meservey_lab
 
 //Vonderbank We preferred capillary blood gas analysis but also included patients with arterial blood gas analysis and some patients with only venous blood gas analysis. (Arterial blood gas analysis is the gold standard in the measurement of blood gases. However, the procedure to obtain arterial blood gas data is painful. Arterialized capillary gases sampled at the ear lobe give similar results for pH and pCO2.2 The interpretation of venous blood gas data is more difficult. The pH is slightly lower (0.02–0.04 pH units) and the pCO2 is slightly higher (3–8 mmHg). However, differences can be greater in patients with hypotension and they depend on local metabolism. We only used venous blood gases if the pCO2 was <45 mmHg and pH was >7.35, which allowed hypercapnia and acidosis to be excluded.3,4 If the pH was also >7.35 and oxygen saturation (measured by pulse oximetry) was normal, additional blood gases were unnecessary but, if not, arterial blood gas data were obtained.)
-gen def7 = (paco2 >= 45 & !missing(paco2)) | (vbg_co2 >= 45 & vbg_ph >= 7.35 & !missing(vbg_co2, vbg_ph))
+gen def7 = (paco2 >= 45 & !missing(paco2)) | (vbg_co2 >= 45 & vbg_ph > 7.35 & !missing(vbg_co2, vbg_ph))
 replace def7 = 0 if missing(def7)
 label variable def7 "Vonderbank"
 label define vonderbank_lab 1 "Vonderbank" 
 label values def7 vonderbank_lab
 
-//Wilson et al: PaCO2 over 45 and pH 7.35-45
-gen def8 = (paco2 >= 45 & abg_ph >= 7.35 & abg_ph <= 7.45) if !missing(paco2, abg_ph)
+//Wilson et al: PaCO2 at least 50 and pH 7.35-7.45
+gen def8 = (paco2 >= 50 & abg_ph >= 7.35 & abg_ph <= 7.45) if !missing(paco2, abg_ph)
 replace def8 = 0 if missing(def8)
 label variable def8 "Wilson"
 label define wilson_lab 1 "Wilson" 
@@ -275,8 +277,8 @@ label variable def9 "Cavalot"
 label define cavalot_lab 1 "Cavalot"
 label values def9 cavalot_lab
 
-//Chung et al 2021: PaCO2 over 45 - exclude Iatrogenic causes, trauma, post-arrest. 
-gen def10 = (paco2 >= 45 & abg_ph < 7.45) if !missing(paco2, abg_ph)
+//Chung et al 2021: PaCO2 at least 45 and pH at most 7.45 - exclude Iatrogenic causes, trauma, post-arrest.
+gen def10 = (paco2 >= 45 & abg_ph <= 7.45) if !missing(paco2, abg_ph)
 replace def10 = 0 if missing(def10)
 label variable def10 "Chung"
 label define chung_lab 1 "Chung"
@@ -437,25 +439,37 @@ kappaetc def1 def2 def3 def4 def5 def6 def7 def8 def9 def10 // Cohen would have 
 preserve
 //Calculate Median and IQR range
 svmat kappa_results, name(kappa_value) //makes separate column for each
-drop if missing(kappa_value1) //has the most ; this is to make this go fast (or it will try to reshape the whole dataset)
-gen id = _n
-reshape long kappa_value, i(id) j(column)
+keep in 1/10
+gen row_definition = _n
+reshape long kappa_value, i(row_definition) j(column_definition)
+drop if missing(kappa_value)
 summarize kappa_value, detail // main result
 sort kappa_value
 list kappa_value 
-summarize kappa_value if kappa_value > 0, detail // sensitivity excluding 4 structurally conflicting case definitions.
+gen intentionally_conflicting = ///
+    (row_definition == 8 & inlist(column_definition, 2, 3, 4)) | ///
+    (row_definition == 9 & column_definition == 8)
+count if intentionally_conflicting == 1
+assert r(N) == 4
+summarize kappa_value if intentionally_conflicting == 0, detail
 restore
 
 preserve
 //Calculate Median and IQR range
 svmat agreement_results, name(agreement_value) //makes separate column for each
-drop if missing(agreement_value1) //has the most ; this is to make this go fast (or it will try to reshape the whole dataset)
-gen id = _n
-reshape long agreement_value, i(id) j(column)
+keep in 1/10
+gen row_definition = _n
+reshape long agreement_value, i(row_definition) j(column_definition)
+drop if missing(agreement_value)
 summarize agreement_value, detail // raw result
 sort agreement_value
 list agreement_value 
-summarize agreement_value if agreement_value > 0, detail // sensitivity excluding 4 structurally conflicting case definitions.
+gen intentionally_conflicting = ///
+    (row_definition == 8 & inlist(column_definition, 2, 3, 4)) | ///
+    (row_definition == 9 & column_definition == 8)
+count if intentionally_conflicting == 1
+assert r(N) == 4
+summarize agreement_value if intentionally_conflicting == 0, detail
 restore
 
 //PABAK sensitivity analyses: 
@@ -476,15 +490,14 @@ abg_vbg_labels 0 "Has neither" 1 "Only ABG obtained (first day)" 2 "Only VBG obt
 -------------------------- */ 
 //ABG only
 
-/* 
-Has ABG (whether or not also had VBG)
-Had VBG (whether or not also had ABG)
-Had either ABG or VBG
-*/ 
+/*
+The three analyses below use mutually exclusive categories:
+ABG only, VBG only, and both ABG and VBG.
+*/
 
-//Had an ABG
+//ABG only
 preserve
-keep if has_abg == 1
+keep if abg_vbg_confusion_matrix == 1
 count 
 matrix abg_kappa_results = J(10, 10, .)
 forval i = 1/10 {
@@ -535,9 +548,9 @@ sort abg_kappa_value
 list abg_kappa_value 
 restore
 
-//had a vbg
+//VBG only
 preserve
-keep if has_vbg == 1
+keep if abg_vbg_confusion_matrix == 2
 count 
 matrix vbg_kappa_results = J(10, 10, .)
 forval i = 1/10 {
@@ -583,9 +596,9 @@ sort vbg_kappa_value
 list vbg_kappa_value 
 restore
 
-//either ABG or VBG
+//Both ABG and VBG
 preserve
-keep if abg_vbg_confusion_matrix !=0
+keep if abg_vbg_confusion_matrix == 3
 count
 matrix abg_vbg_kappa_results = J(10, 10, .)
 forval i = 1/10 {
@@ -616,10 +629,10 @@ heatplot abg_vbg_kappa_results, ///
  legend(off) ///
  p(lcolor(black%10) lwidth(*0.15)) ///
  values(format(%4.2f) size(small) color(white)) ///
- title("Agreement Beyond Chance of Case Definitions, ABG-VBG", size(medsmall)) ///
+ title("Agreement Beyond Chance of Case Definitions, Both ABG and VBG", size(medsmall)) ///
  color(RdYlGn, intensify(1.25)) ///
  xsize(5) ysize(5)
-graph export "`outdir'/ABG-VBG Definition Overlap HeatPlot - Kappa.png", as(png) name("Graph") replace
+graph export "`outdir'/Both ABG and VBG Definition Overlap HeatPlot - Kappa.png", as(png) name("Graph") replace
 
 kappaetc def1 def2 def3 def4 def5 def6 def7 def8 def9 def10 // Cohen would have been an alterantive way to Median Kappa
 
@@ -913,8 +926,8 @@ graph combine "`graphdir'/All_Encounters_Prob_Dx_spline.gph" "`graphdir'/Emer_En
 	cols(1) /// 
 	xcommon ///
 	xsize(7) ysize(9)
-graph export "`outdir'/Figure 2 Prob Hypercap ICD.png", name("Graph") width(3600) replace
-//graph export "`outdir'/IPW Figure 2.svg", name("Graph") replace //huge
+graph export "`outdir'/Figure 3 Prob Hypercap ICD.png", name("Graph") width(3600) replace
+//graph export "`outdir'/IPW Figure 3.svg", name("Graph") replace //huge
 
 /* 
 REGIONAL VARIATION in the application of ICD codes at various levels of PaCO2 elevation
@@ -1045,7 +1058,7 @@ graph combine "`graphdir'/Loc2_Encounters_Prob_Dx_spline.gph" "`graphdir'/Loc1_E
 	xcommon ///
 	ycommon ///
 	xsize(8) ysize(8)
-graph export "`outdir'/Location - Figure S3 Prob Hypercap ICD.png", name("Graph") width(3200) replace
+graph export "`outdir'/Location - e-Figure 5 Prob Hypercap ICD.png", name("Graph") width(3200) replace
 
 /* Aggregate-only run metrics and explicit completion marker. */
 local n_analytic = _N

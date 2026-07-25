@@ -12,10 +12,12 @@ input fields that are not referenced by the current do-file, and 27 variables
 derived in Stata. Input and output artifacts are documented separately in
 `metadata/upstream_dependency.yml` and `metadata/output_manifest.csv`.
 
-`draft` means that a description or derivation was observed from the downstream
-code but has not been verified against an authoritative source. `needs_review`
-marks a known question requiring human confirmation. `blocked` is reserved for
-questions that cannot be resolved without missing upstream documentation.
+`verified` means that the documented rule was checked against the named source
+and approved for this repository. `draft` means that a description or
+derivation was observed from the downstream code but has not been verified
+against an authoritative source. `needs_review` marks a known question requiring
+human confirmation. `blocked` is reserved for questions that cannot be resolved
+without missing upstream documentation.
 
 ## Restricted Input
 
@@ -27,9 +29,11 @@ The approved restricted input is bound to upstream producer commit
 `44f49748d415e92b7d50b50d86b8fdea29f6cb07` and the repository-defined
 observed schema `hypercapnia-full-db-v1`. This owner-approved assignment is
 based on historical evidence; the upstream build did not preserve source-file
-hashes or a clean-worktree attestation and is not reproduced here. This
-artifact-level assignment does not verify the individual source-variable
-derivations marked `blocked` or `needs_review` in `data_dictionary.csv`.
+hashes or a clean-worktree attestation and is not reproduced here. The
+derivations of `hypercap_on_abg` and `hypercap_resp_failure` were separately
+verified from the producer-commit Git object and are rechecked by the guarded
+input contract. This does not verify any other source-variable derivation marked
+`blocked` or `needs_review` in `data_dictionary.csv`.
 
 ## Source Variable Groups
 
@@ -50,18 +54,20 @@ derivations marked `blocked` or `needs_review` in `data_dictionary.csv`.
 | `def1` | Adler | `paco2 >= 47.25` and `vent_proc == 1` | draft |
 | `def2` | Thille | `paco2 >= 45`, `abg_ph < 7.35`, and `vent_proc == 1` | draft |
 | `def3` | Ouanes-Besbes | `paco2 >= 45` and `abg_ph < 7.35` | draft |
-| `def4` | Calvo | `def3 == 1` and `niv_proc == 1` | draft |
-| `def5` | Bülbül | `hypercap_on_abg` | needs_review |
-| `def6` | Meservey | `hypercap_resp_failure` diagnosis flag | draft |
-| `def7` | Vonderbank | `paco2 >= 45` or qualifying VBG criteria `vbg_co2 >= 45` and `vbg_ph >= 7.35` | draft |
-| `def8` | Wilson | `paco2 >= 45` and `7.35 <= abg_ph <= 7.45` | draft |
+| `def4` | Calvo | `paco2 > 45`, `abg_ph < 7.35`, and `niv_proc == 1` | verified |
+| `def5` | Bülbül | nonmissing `paco2 >= 45`, asserted against `hypercap_on_abg` | verified |
+| `def6` | Meservey | any of `ohs_code`, `has_j9602`, `has_j9612`, `has_j9622`, or `has_j9692`, asserted against `hypercap_resp_failure` | verified |
+| `def7` | Vonderbank | `paco2 >= 45` or qualifying VBG criteria `vbg_co2 >= 45` and `vbg_ph > 7.35` | verified |
+| `def8` | Wilson | `paco2 >= 50` and `7.35 <= abg_ph <= 7.45` | verified |
 | `def9` | Cavalot | `paco2 >= 45` and `abg_ph <= 7.35`, or `vbg_co2 >= 50` and `vbg_ph <= 7.34` | draft |
-| `def10` | Chung | `paco2 >= 45` and `abg_ph < 7.45` | draft |
+| `def10` | Chung | `paco2 >= 45` and `abg_ph <= 7.45` | verified |
 
 The complete code-versus-source inventory, missingness behavior, unavailable
 criteria, and approval state are recorded in
-`metadata/phenotype_definitions.csv`. None of these definitions is clinically
-approved by the metadata registry.
+`metadata/phenotype_definitions.csv`. The simulated rules for `def4`, `def5`,
+`def6`, `def7`, `def8`, and `def10` are approved. This approval does not imply
+that non-simulated source-study exclusions, settings, or repeat-measurement
+criteria were implemented.
 
 ## Main Derived Variables
 
@@ -81,7 +87,7 @@ approved by the metadata registry.
 ## Related Metadata
 
 - `metadata/phenotype_definitions.csv` records the ten current implementation
-  rules and their unapproved review state.
+  rules and distinguishes approved simulated rules from unresolved definitions.
 - `metadata/output_manifest.csv` records the 12 generated artifact families.
 - `metadata/stata_dependencies.csv` records directly invoked
   community-contributed commands and the graphics scheme.

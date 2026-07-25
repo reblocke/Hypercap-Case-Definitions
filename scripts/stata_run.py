@@ -36,16 +36,26 @@ EXPECTED_PNG = (
     "Definition Overlap HeatPlot - PABAK.png",
     "ABG-only Definition Overlap HeatPlot - Kappa.png",
     "VBG-only Definition Overlap HeatPlot - Kappa.png",
-    "ABG-VBG Definition Overlap HeatPlot - Kappa.png",
+    "Both ABG and VBG Definition Overlap HeatPlot - Kappa.png",
     *(f"Loc{index}-Definition Overlap HeatPlot - Kappa.png" for index in range(4)),
     "Unadjusted Prob of Dx Hypercapnia Splines .png",
-    "Figure 2 Prob Hypercap ICD.png",
+    "Figure 3 Prob Hypercap ICD.png",
     "South - Unadjusted Prob of Dx Hypercapnia Splines .png",
     "Northeast - Unadjusted Prob of Dx Hypercapnia Splines .png",
     "Midwest - Unadjusted Prob of Dx Hypercapnia Splines .png",
     "West - Unadjusted Prob of Dx Hypercapnia Splines.png",
-    "Location - Figure S3 Prob Hypercap ICD.png",
+    "Location - e-Figure 5 Prob Hypercap ICD.png",
 )
+
+LEGACY_PNG_ALIASES = {
+    "Both ABG and VBG Definition Overlap HeatPlot - Kappa.png": (
+        "ABG-VBG Definition Overlap HeatPlot - Kappa.png"
+    ),
+    "Figure 3 Prob Hypercap ICD.png": "Figure 2 Prob Hypercap ICD.png",
+    "Location - e-Figure 5 Prob Hypercap ICD.png": (
+        "Location - Figure S3 Prob Hypercap ICD.png"
+    ),
+}
 
 EXPECTED_GPH = (
     "All_Encounters_Prob_Dx_spline.gph",
@@ -239,15 +249,20 @@ def dependency_report(raw_path: Path, clean_path: Path) -> list[dict[str, Any]]:
     return dependencies
 
 
-def required_artifact_paths(root: Path) -> list[Path]:
+def required_artifact_paths(root: Path, *, legacy: bool = False) -> list[Path]:
     paths = [root / name for name in EXPECTED_XLSX]
-    paths.extend(root / name for name in EXPECTED_PNG)
+    png_names = (
+        tuple(LEGACY_PNG_ALIASES.get(name, name) for name in EXPECTED_PNG)
+        if legacy
+        else EXPECTED_PNG
+    )
+    paths.extend(root / name for name in png_names)
     paths.extend(root / "graph-temp" / name for name in EXPECTED_GPH)
     return paths
 
 
-def validate_artifact_inventory(root: Path) -> dict[str, Any]:
-    expected = required_artifact_paths(root)
+def validate_artifact_inventory(root: Path, *, legacy: bool = False) -> dict[str, Any]:
+    expected = required_artifact_paths(root, legacy=legacy)
     missing = [
         path.relative_to(root).as_posix()
         for path in expected

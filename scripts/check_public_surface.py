@@ -24,7 +24,11 @@ EXPECTED_IDENTITY = {
 APPROVED_PRODUCER_COMMIT = "44f49748d415e92b7d50b50d86b8fdea29f6cb07"
 APPROVED_INPUT_SCHEMA = "hypercapnia-full-db-v1"
 APPROVED_VERIFICATION_BASIS = "scientific_owner_approved_historical_evidence"
-APPROVED_VERIFICATION_SCOPE = "artifact_producer_and_observed_schema_only"
+APPROVED_VERIFICATION_SCOPE = (
+    "artifact_producer_observed_schema_and_selected_phenotype_derivations"
+)
+APPROVED_PHENOTYPE_IDS = {"def4", "def5", "def6", "def7", "def8", "def10"}
+VERIFIED_UPSTREAM_VARIABLES = {"hypercap_on_abg", "hypercap_resp_failure"}
 
 ALLOWED_CSV_PATHS = {
     PurePosixPath("data_dictionary.csv"),
@@ -171,19 +175,32 @@ def validate_phenotype_rows(
                 f"metadata/phenotype_definitions.csv:{index}: "
                 "implementation status must be observed_from_code"
             )
-        if row.get("source_verification_status") not in {
-            "blocked",
-            "needs_review",
-        }:
-            issues.append(
-                f"metadata/phenotype_definitions.csv:{index}: "
-                "source verification must remain blocked or needs_review"
-            )
-        if row.get("approval_status") != "unapproved":
-            issues.append(
-                f"metadata/phenotype_definitions.csv:{index}: "
-                "approval status must remain unapproved"
-            )
+        definition_id = row.get("definition_id", "").strip()
+        if definition_id in APPROVED_PHENOTYPE_IDS:
+            if row.get("source_verification_status") != "verified":
+                issues.append(
+                    f"metadata/phenotype_definitions.csv:{index}: "
+                    "approved definition source must be verified"
+                )
+            if row.get("approval_status") != "approved":
+                issues.append(
+                    f"metadata/phenotype_definitions.csv:{index}: "
+                    "approved definition must carry approved status"
+                )
+        else:
+            if row.get("source_verification_status") not in {
+                "blocked",
+                "needs_review",
+            }:
+                issues.append(
+                    f"metadata/phenotype_definitions.csv:{index}: "
+                    "unapproved definition source must remain blocked or needs_review"
+                )
+            if row.get("approval_status") != "unapproved":
+                issues.append(
+                    f"metadata/phenotype_definitions.csv:{index}: "
+                    "definition is not in the approved allowlist"
+                )
 
         location = row.get("code_location", "").strip()
         location_match = re.fullmatch(r"(.+):([1-9]\d*)", location)
@@ -229,7 +246,6 @@ def validate_phenotype_rows(
             )
             continue
 
-        definition_id = row.get("definition_id", "").strip()
         definition_pattern = re.compile(
             rf"^\s*(?:gen|generate)\s+{re.escape(definition_id)}\s*=",
             re.IGNORECASE,
@@ -293,14 +309,18 @@ def validate_dictionary_rows(rows: Sequence[Mapping[str, str]]) -> list[str]:
             issues.append(
                 f"data_dictionary.csv:{index}: invalid upstream_derivation_status"
             )
-        if (
-            row.get("workflow_role") in {"runtime_input", "context_only"}
-            and row.get("upstream_derivation_status") != "blocked"
-        ):
-            issues.append(
-                f"data_dictionary.csv:{index}: full_db.dta input derivation "
-                "must remain blocked"
+        variable_name = row.get("variable_name", "")
+        if row.get("workflow_role") in {"runtime_input", "context_only"}:
+            expected_status = (
+                "verified"
+                if variable_name in VERIFIED_UPSTREAM_VARIABLES
+                else "blocked"
             )
+            if row.get("upstream_derivation_status") != expected_status:
+                issues.append(
+                    f"data_dictionary.csv:{index}: full_db.dta input derivation "
+                    f"must be {expected_status}"
+                )
         if row.get("review_status") not in VALID_REVIEW_STATUSES:
             issues.append(f"data_dictionary.csv:{index}: invalid review_status")
         if row.get("review_status") == "reviewed_from_code":
@@ -326,6 +346,7 @@ def _parse_flat_yaml(path: Path) -> dict[str, str]:
 def validate_upstream_record(upstream: Mapping[str, str]) -> list[str]:
     issues: list[str] = []
     expected_upstream = {
+        "schema_version": "2",
         "upstream_repository": (
             "https://github.com/reblocke/trinetx-hypercapnia-code"
         ),
@@ -344,6 +365,15 @@ def validate_upstream_record(upstream: Mapping[str, str]) -> list[str]:
         "verification_basis": APPROVED_VERIFICATION_BASIS,
         "verification_scope": APPROVED_VERIFICATION_SCOPE,
         "verification_date": "2026-07-23",
+        "verified_derivations": "hypercap_on_abg,hypercap_resp_failure",
+        "derivation_source_file": "stata/do/10_preprocessing.do",
+        "derivation_source_blob_git_oid": (
+            "5842c635bc37a0477eed351295a8d2109b8037e3"
+        ),
+        "derivation_source_sha256": (
+            "be64c9e09c32fa3615c523ebcfb75dbe631ecb8b87c05e7710fe940134e1e451"
+        ),
+        "derivation_verification_date": "2026-07-24",
         "historical_clean_worktree_recorded": "false",
         "historical_source_hashes_recorded": "false",
     }

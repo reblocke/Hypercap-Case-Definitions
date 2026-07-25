@@ -85,6 +85,25 @@ if `hard_failures' == 0 {
         }
     }
 
+    quietly count if cond(missing(hypercap_on_abg), 0, hypercap_on_abg) != ///
+        (paco2 >= 45 & !missing(paco2))
+    local violations = r(N)
+    local severity = cond(`violations' == 0, "pass", "error")
+    file write `report' "aggregate_definition" _tab "hypercap_on_abg" _tab ///
+        "`severity'" _tab "`violations'" _tab "must_match_day1_paco2_ge_45" _n
+    if `violations' > 0 local ++hard_failures
+
+    quietly count if cond(missing(hypercap_resp_failure), 0, ///
+        hypercap_resp_failure) != ///
+        (ohs_code == 1 | has_j9602 == 1 | has_j9612 == 1 | ///
+        has_j9622 == 1 | has_j9692 == 1)
+    local violations = r(N)
+    local severity = cond(`violations' == 0, "pass", "error")
+    file write `report' "aggregate_definition" _tab ///
+        "hypercap_resp_failure" _tab "`severity'" _tab "`violations'" _tab ///
+        "must_match_j9602_j9612_j9622_j9692_e662_union" _n
+    if `violations' > 0 local ++hard_failures
+
     quietly count if has_abg == 0 & !missing(paco2)
     file write `report' "availability_discordance" _tab "has_abg_paco2" _tab ///
         "warning" _tab "`r(N)'" _tab "has_abg_0_with_paco2_present" _n

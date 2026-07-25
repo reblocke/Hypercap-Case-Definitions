@@ -25,14 +25,14 @@ def write_authority(root: Path) -> None:
     (metadata / "upstream_dependency.yml").write_text(
         "\n".join(
             (
-                "schema_version: 1",
+                "schema_version: 2",
                 f"upstream_repository: {UPSTREAM_REPOSITORY}",
                 f"producer_commit: {PRODUCER_COMMIT}",
                 f"input_schema_version: {INPUT_SCHEMA_VERSION}",
                 "expected_artifact: full_db.dta",
                 "verification_status: verified",
                 "verification_basis: scientific_owner_approved_historical_evidence",
-                "verification_scope: artifact_producer_and_observed_schema_only",
+                "verification_scope: artifact_producer_observed_schema_and_selected_phenotype_derivations",
                 "",
             )
         ),
@@ -213,7 +213,7 @@ class InputManifestTests(unittest.TestCase):
                 "verification_basis: unsupported",
             ),
             (
-                "verification_scope: artifact_producer_and_observed_schema_only",
+                "verification_scope: artifact_producer_observed_schema_and_selected_phenotype_derivations",
                 "verification_scope: overly_broad",
             ),
         )

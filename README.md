@@ -41,14 +41,14 @@ Support listed in the article includes the American Thoracic Society ASPIRE Fell
 | `Hypercapnia Case Definitions.do` | Main Stata workflow for cohort filtering, case-definition emulation, agreement analyses, descriptive tables, Cox models, diagnosis-code performance, and figures. |
 | `scripts/input_manifest.py` | One-time restricted-input approval and validation for the adjacent local manifest. |
 | `scripts/run_stata.sh`, `scripts/stata_run.py` | Guarded restricted-data runner with unique run folders, provenance capture, and artifact-completeness checks. |
-| `scripts/compare_stata_runs.py` | Value-suppressing comparator for one legacy baseline and two candidate runs. |
+| `scripts/compare_stata_runs.py` | Value-suppressing equivalence or correction-impact comparator for one legacy baseline and two candidate runs. |
 | `stata/` | Dependency preflight, input-contract validation, and neutral Stata driver files. |
 | `Case Definitions Consort.ipynb` | Python/Graphviz notebook for the CONSORT-style case-definition diagram. |
 | `data_dictionary.md`, `data_dictionary.csv` | Human- and machine-readable documentation for expected input and derived variables. |
 | `docs/REPRODUCIBILITY.md` | Public, restricted downstream, and upstream reproducibility boundaries. |
 | `docs/VALIDATION.md` | Sanitized baseline-equivalence and repeatability result for the guarded Stata workflow. |
-| `docs/SCIENTIFIC_ALIGNMENT.md` | Unresolved differences between the final article and current implementation. |
-| `metadata/` | Code-derived phenotype inventory, upstream dependency record, Stata dependency inventory, and generated-output manifest. |
+| `docs/SCIENTIFIC_ALIGNMENT.md` | Approved, pending-validation, and unresolved final-article alignment decisions. |
+| `metadata/` | Phenotype approval inventory, upstream dependency record, Stata dependency inventory, and generated-output manifest. |
 | `CITATION.cff` | Structured citation metadata for the repository and the preferred CHEST article citation. |
 | `llms.txt` | Concise machine-readable project index for search, retrieval, and future coding agents. |
 | `AGENTS.md` | Repository-specific working rules for future coding agents. |
@@ -69,7 +69,10 @@ The approved restricted input is bound to upstream producer commit
 `44f49748d415e92b7d50b50d86b8fdea29f6cb07` and the repository-defined
 observed schema `hypercapnia-full-db-v1`. This owner-approved assignment is
 based on historical evidence; the upstream build did not preserve source-file
-hashes or a clean-worktree attestation and is not reproduced here.
+hashes or a clean-worktree attestation and is not reproduced here. The selected
+derivations of `hypercap_on_abg` and `hypercap_resp_failure` were separately
+verified from the producer-commit Git object; other upstream derivations remain
+outside the verified scope.
 
 ## Workflow
 
@@ -134,7 +137,7 @@ make stata-run \
 unique run directory, records hashes and the Stata environment in an ignored
 manifest, verifies the adjacent approval and input contract before launch and
 again after analysis, and writes `SUCCESS` only after the Stata process exits
-zero, Stata reports completion, and all 40 legacy artifacts are present and
+zero, Stata reports completion, and all 40 required artifacts are present and
 nonempty. Existing run directories are never reused.
 
 `make stata-run` is the sole supported scientific execution interface. The
@@ -153,6 +156,24 @@ make stata-compare \
   CANDIDATE_RUN_2="outputs/validation/candidate-2" \
   INPUT_ROOT="/approved/restricted/hypercapnia"
 ```
+
+The default `COMPARISON_MODE=equivalence` requires the baseline and candidates
+to match. For an owner-approved scientific correction, set
+`COMPARISON_MODE=correction`; the historical comparison is then reported as
+correction impact, while the two candidate runs must still match exactly:
+
+```bash
+make stata-compare \
+  COMPARISON_MODE=correction \
+  BASELINE_RUN="outputs/validation/baseline" \
+  CANDIDATE_RUN_1="outputs/validation/candidate-1" \
+  CANDIDATE_RUN_2="outputs/validation/candidate-2" \
+  INPUT_ROOT="/approved/restricted/hypercapnia"
+```
+
+The comparator maps the three intentionally renamed Figure 3, e-Figure 5, and
+both-test heatmap files to their historical names when reading a legacy
+baseline.
 
 Before comparing artifacts, the comparator validates the current adjacent
 approval, requires a legacy baseline, requires two guarded candidates whose

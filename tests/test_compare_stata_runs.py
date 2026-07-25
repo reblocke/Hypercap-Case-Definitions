@@ -82,7 +82,12 @@ def write_complete_run_evidence(path: Path, *, legacy: bool) -> None:
     for name in compare.stata_run.EXPECTED_XLSX:
         (path / name).write_bytes(b"x")
     for name in compare.stata_run.EXPECTED_PNG:
-        (path / name).write_bytes(b"x")
+        observed_name = (
+            compare.stata_run.LEGACY_PNG_ALIASES.get(name, name)
+            if legacy
+            else name
+        )
+        (path / observed_name).write_bytes(b"x")
     for name in compare.stata_run.EXPECTED_GPH:
         (path / "graph-temp" / name).write_bytes(b"x")
     (path / "Logs" / "analysis.log").write_text("log\n", encoding="utf-8")
@@ -149,6 +154,8 @@ def run_stubbed_comparator(
     run_id_overrides: dict[str, str] | None = None,
     artifact_relative_overrides: dict[str, str] | None = None,
     missing_control: tuple[str, str] | None = None,
+    comparison_mode: str = "equivalence",
+    comparison_side_effect: object = passing_comparison,
 ) -> tuple[int, dict[str, object], int]:
     roles = ("baseline", "candidate_1", "candidate_2")
     if input_file is None:
@@ -209,6 +216,8 @@ def run_stubbed_comparator(
         str(report_path),
         "--input-file",
         str(input_file),
+        "--comparison-mode",
+        comparison_mode,
     ]
     with (
         patch.object(
@@ -227,7 +236,7 @@ def run_stubbed_comparator(
         patch.object(
             compare,
             "compare_pair",
-            side_effect=passing_comparison,
+            side_effect=comparison_side_effect,
         ) as compare_pair,
     ):
         status = compare.main(arguments)
@@ -278,6 +287,23 @@ class ComparatorUnitTests(unittest.TestCase):
             compare.compare_png(left, changed, changed_failures)
         self.assertEqual([], equal_failures)
         self.assertTrue(changed_failures)
+
+    def test_legacy_inventory_uses_explicit_png_aliases(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_complete_run_evidence(root, legacy=True)
+            legacy_inventory = compare.stata_run.validate_artifact_inventory(
+                root,
+                legacy=True,
+            )
+            current_inventory = compare.stata_run.validate_artifact_inventory(
+                root,
+                legacy=False,
+            )
+        self.assertEqual([], legacy_inventory["missing"])
+        for current_name, legacy_name in compare.stata_run.LEGACY_PNG_ALIASES.items():
+            self.assertIn(current_name, current_inventory["missing"])
+            self.assertNotEqual(current_name, legacy_name)
 
     def test_log_normalization_removes_restricted_row_listing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1155,6 +1181,104 @@ class ComparatorUnitTests(unittest.TestCase):
                 [item["comparison"] for item in report["comparisons"]],
             )
             self.assertEqual(2, comparison_count)
+
+    def test_correction_mode_passes_with_historical_impact_and_repeatability(
+        self,
+    ) -> None:
+        def correction_comparison(
+            _left: Path,
+            _right: Path,
+            label: str,
+        ) -> dict[str, object]:
+            if label == "historical_impact":
+                return {
+                    "comparison": label,
+                    "status": "fail",
+                    "failures": [
+                        {
+                            "category": "workbook_value",
+                            "artifact": "Def8-Summary.xlsx",
+                            "location": "Results!A2",
+                        }
+                    ],
+                }
+            return passing_comparison(_left, _right, label)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            status, report, comparison_count = run_stubbed_comparator(
+                Path(tmp),
+                comparison_mode="correction",
+                comparison_side_effect=correction_comparison,
+            )
+        self.assertEqual(0, status)
+        self.assertEqual("correction", report["comparison_mode"])
+        self.assertEqual("pass", report["status"])
+        self.assertEqual("changed", report["comparisons"][0]["status"])
+        self.assertEqual("pass", report["comparisons"][1]["status"])
+        self.assertEqual(2, comparison_count)
+        self.assertNotIn("1.25", repr(report))
+
+    def test_correction_mode_still_requires_candidate_repeatability(self) -> None:
+        def nonrepeatable_comparison(
+            _left: Path,
+            _right: Path,
+            label: str,
+        ) -> dict[str, object]:
+            if label == "candidate_repeatability":
+                return {
+                    "comparison": label,
+                    "status": "fail",
+                    "failures": [
+                        {
+                            "category": "png_pixels",
+                            "artifact": "Definition Overlap HeatPlot.png",
+                        }
+                    ],
+                }
+            return passing_comparison(_left, _right, label)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            status, report, comparison_count = run_stubbed_comparator(
+                Path(tmp),
+                comparison_mode="correction",
+                comparison_side_effect=nonrepeatable_comparison,
+            )
+        self.assertEqual(1, status)
+        self.assertEqual("fail", report["status"])
+        self.assertEqual(2, comparison_count)
+
+    def test_correction_report_cannot_pass_without_historical_impact(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            report = compare.write_report(
+                Path(tmp) / "comparison.json",
+                observed_input_hash="a" * 64,
+                comparisons=[
+                    {
+                        "comparison": "candidate_repeatability",
+                        "status": "pass",
+                        "failures": [],
+                    }
+                ],
+                failures=[],
+                comparison_mode="correction",
+                announce=False,
+            )
+        self.assertEqual("fail", report["status"])
+
+    def test_correction_mode_preserves_evidence_integrity_failures(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            status, report, comparison_count = run_stubbed_comparator(
+                Path(tmp),
+                comparison_mode="correction",
+                legacy_overrides={"candidate_1": True},
+            )
+        self.assertEqual(1, status)
+        self.assertIn(
+            {"category": "run_role", "role": "candidate_1"},
+            report["failures"],
+        )
+        self.assertEqual([], report["comparisons"])
+        self.assertEqual(0, comparison_count)
 
 
 if __name__ == "__main__":

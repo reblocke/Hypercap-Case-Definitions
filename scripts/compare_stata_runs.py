@@ -161,17 +161,18 @@ def compare_png(
     left_path: Path,
     right_path: Path,
     failures: list[dict[str, Any]],
+    *,
+    artifact: str | None = None,
 ) -> None:
+    artifact = artifact or left_path.name
     with Image.open(left_path) as left_image, Image.open(right_path) as right_image:
         left = left_image.convert("RGBA")
         right = right_image.convert("RGBA")
         if left.size != right.size:
-            failures.append(
-                {"category": "png_dimensions", "artifact": left_path.name}
-            )
+            failures.append({"category": "png_dimensions", "artifact": artifact})
             return
         if left.tobytes() != right.tobytes():
-            failures.append({"category": "png_pixels", "artifact": left_path.name})
+            failures.append({"category": "png_pixels", "artifact": artifact})
 
 
 def strip_row_listing(lines: list[str]) -> list[str]:
@@ -395,7 +396,22 @@ def compare_pair(
     for name in stata_run.EXPECTED_XLSX:
         compare_workbook(left_artifacts / name, right_artifacts / name, failures)
     for name in stata_run.EXPECTED_PNG:
-        compare_png(left_artifacts / name, right_artifacts / name, failures)
+        left_name = (
+            stata_run.LEGACY_PNG_ALIASES.get(name, name)
+            if left_manifest.get("legacy_two_argument_mode") is True
+            else name
+        )
+        right_name = (
+            stata_run.LEGACY_PNG_ALIASES.get(name, name)
+            if right_manifest.get("legacy_two_argument_mode") is True
+            else name
+        )
+        compare_png(
+            left_artifacts / left_name,
+            right_artifacts / right_name,
+            failures,
+            artifact=name,
+        )
     for name in stata_run.EXPECTED_GPH:
         for root in (left_artifacts, right_artifacts):
             path = root / "graph-temp" / name
@@ -515,14 +531,18 @@ def validate_live_run_evidence(
     for role, run_dir in runs.items():
         manifest = manifests[role]
         artifact_root = artifact_roots[role]
-        inventory = stata_run.validate_artifact_inventory(artifact_root)
+        legacy = manifest.get("legacy_two_argument_mode") is True
+        inventory = stata_run.validate_artifact_inventory(
+            artifact_root,
+            legacy=legacy,
+        )
         if inventory["missing"]:
             failures.append({"category": "artifact_inventory", "role": role})
         controls = stata_run.validate_control_artifacts(
             run_dir,
             artifact_root,
             inventory,
-            legacy=manifest.get("legacy_two_argument_mode") is True,
+            legacy=legacy,
             include_success=True,
         )
         if controls["control_missing"]:
@@ -585,13 +605,40 @@ def write_report(
     observed_input_hash: str | None,
     comparisons: list[dict[str, Any]],
     failures: list[dict[str, Any]],
+    comparison_mode: str = "equivalence",
     announce: bool = True,
 ) -> dict[str, Any]:
+    by_label = {
+        item.get("comparison"): item
+        for item in comparisons
+        if isinstance(item, dict)
+    }
+    if comparison_mode == "correction":
+        historical = by_label.get("historical_impact")
+        repeatability = by_label.get("candidate_repeatability")
+        passed = (
+            not failures
+            and len(comparisons) == 2
+            and historical is not None
+            and historical.get("status") in {"changed", "unchanged"}
+            and repeatability is not None
+            and repeatability.get("status") == "pass"
+        )
+    else:
+        baseline = by_label.get("baseline_vs_candidate_1")
+        repeatability = by_label.get("candidate_repeatability")
+        passed = (
+            not failures
+            and len(comparisons) == 2
+            and baseline is not None
+            and baseline.get("status") == "pass"
+            and repeatability is not None
+            and repeatability.get("status") == "pass"
+        )
     report = {
         "schema_version": 2,
-        "status": "pass"
-        if not failures and all(item["status"] == "pass" for item in comparisons)
-        else "fail",
+        "comparison_mode": comparison_mode,
+        "status": "pass" if passed else "fail",
         "input_sha256_after_runs": observed_input_hash,
         "comparisons": comparisons,
         "failures": failures,
@@ -633,6 +680,11 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--input-file", required=True)
     result.add_argument("--analysis-root", default=str(ROOT))
     result.add_argument("--expected-input-sha256")
+    result.add_argument(
+        "--comparison-mode",
+        choices=("equivalence", "correction"),
+        default="equivalence",
+    )
     result.add_argument("--report", required=True)
     return result
 
@@ -645,6 +697,7 @@ def main(argv: Iterable[str] | None = None) -> int:
         observed_input_hash=None,
         comparisons=[],
         failures=[{"category": "comparison_incomplete", "role": "run_set"}],
+        comparison_mode=args.comparison_mode,
         announce=False,
     )
 
@@ -669,6 +722,7 @@ def main(argv: Iterable[str] | None = None) -> int:
                     "role": "current_input",
                 }
             ],
+            comparison_mode=args.comparison_mode,
         )
         return 0 if report["status"] == "pass" else 1
 
@@ -688,6 +742,7 @@ def main(argv: Iterable[str] | None = None) -> int:
                     "role": "current_input",
                 }
             ],
+            comparison_mode=args.comparison_mode,
         )
         return 0 if report["status"] == "pass" else 1
 
@@ -730,6 +785,7 @@ def main(argv: Iterable[str] | None = None) -> int:
                     "role": "run_set",
                 }
             ],
+            comparison_mode=args.comparison_mode,
         )
         return 0 if report["status"] == "pass" else 1
     except (AttributeError, KeyError, OSError, TypeError, ValueError):
@@ -743,6 +799,7 @@ def main(argv: Iterable[str] | None = None) -> int:
                     "role": "run_set",
                 }
             ],
+            comparison_mode=args.comparison_mode,
         )
         return 0 if report["status"] == "pass" else 1
 
@@ -758,8 +815,23 @@ def main(argv: Iterable[str] | None = None) -> int:
     comparisons = []
     if not failures:
         try:
+            baseline_comparison = compare_pair(
+                baseline,
+                candidate_one,
+                (
+                    "historical_impact"
+                    if args.comparison_mode == "correction"
+                    else "baseline_vs_candidate_1"
+                ),
+            )
+            if args.comparison_mode == "correction":
+                baseline_comparison["status"] = (
+                    "unchanged"
+                    if not baseline_comparison["failures"]
+                    else "changed"
+                )
             comparisons = [
-                compare_pair(baseline, candidate_one, "baseline_vs_candidate_1"),
+                baseline_comparison,
                 compare_pair(
                     candidate_one,
                     candidate_two,
@@ -801,6 +873,7 @@ def main(argv: Iterable[str] | None = None) -> int:
         observed_input_hash=observed_input_hash,
         comparisons=comparisons,
         failures=failures,
+        comparison_mode=args.comparison_mode,
     )
     return 0 if report["status"] == "pass" else 1
 

@@ -14,6 +14,7 @@ import check_public_surface as audit  # noqa: E402
 
 def valid_upstream_record() -> dict[str, str]:
     return {
+        "schema_version": "2",
         "upstream_repository": (
             "https://github.com/reblocke/trinetx-hypercapnia-code"
         ),
@@ -32,6 +33,15 @@ def valid_upstream_record() -> dict[str, str]:
         "verification_basis": audit.APPROVED_VERIFICATION_BASIS,
         "verification_scope": audit.APPROVED_VERIFICATION_SCOPE,
         "verification_date": "2026-07-23",
+        "verified_derivations": "hypercap_on_abg,hypercap_resp_failure",
+        "derivation_source_file": "stata/do/10_preprocessing.do",
+        "derivation_source_blob_git_oid": (
+            "5842c635bc37a0477eed351295a8d2109b8037e3"
+        ),
+        "derivation_source_sha256": (
+            "be64c9e09c32fa3615c523ebcfb75dbe631ecb8b87c05e7710fe940134e1e451"
+        ),
+        "derivation_verification_date": "2026-07-24",
         "historical_clean_worktree_recorded": "false",
         "historical_source_hashes_recorded": "false",
         "notes": (
@@ -117,7 +127,32 @@ class PublicSurfaceUnitTests(unittest.TestCase):
             )
         rows[0]["approval_status"] = "approved"
         issues = audit.validate_phenotype_rows(rows)
-        self.assertTrue(any("must remain unapproved" in issue for issue in issues))
+        self.assertTrue(any("not in the approved allowlist" in issue for issue in issues))
+
+    def test_approved_phenotype_must_remain_verified_and_approved(self) -> None:
+        rows = audit._read_csv(ROOT / "metadata/phenotype_definitions.csv")
+        target = next(row for row in rows if row["definition_id"] == "def4")
+        target["source_verification_status"] = "needs_review"
+        target["approval_status"] = "unapproved"
+        issues = audit.validate_phenotype_rows(rows)
+        self.assertTrue(
+            any("approved definition source must be verified" in issue for issue in issues)
+        )
+        self.assertTrue(
+            any("approved definition must carry approved status" in issue for issue in issues)
+        )
+
+    def test_selected_upstream_derivations_are_allowlisted(self) -> None:
+        rows = audit._read_csv(ROOT / "data_dictionary.csv")
+        aggregate = next(
+            row for row in rows if row["variable_name"] == "hypercap_on_abg"
+        )
+        aggregate["upstream_derivation_status"] = "blocked"
+        unselected = next(row for row in rows if row["variable_name"] == "paco2")
+        unselected["upstream_derivation_status"] = "verified"
+        issues = audit.validate_dictionary_rows(rows)
+        self.assertTrue(any("must be verified" in issue for issue in issues))
+        self.assertTrue(any("must be blocked" in issue for issue in issues))
 
     def test_malformed_phenotype_code_location_is_detected(self) -> None:
         rows = [
@@ -273,17 +308,17 @@ class PublicSurfaceUnitTests(unittest.TestCase):
         issues = audit.validate_dictionary_rows(rows)
         self.assertTrue(any("output artifact" in issue for issue in issues))
 
-    def test_full_db_input_derivation_cannot_be_silently_verified(self) -> None:
+    def test_unselected_full_db_derivation_cannot_be_silently_verified(self) -> None:
         with (ROOT / "data_dictionary.csv").open(
             newline="",
             encoding="utf-8",
         ) as handle:
             rows = list(csv.DictReader(handle))
-        target = next(row for row in rows if row["workflow_role"] == "runtime_input")
+        target = next(row for row in rows if row["variable_name"] == "paco2")
         target["upstream_derivation_status"] = "verified"
         issues = audit.validate_dictionary_rows(rows)
         self.assertTrue(
-            any("input derivation must remain blocked" in issue for issue in issues),
+            any("input derivation must be blocked" in issue for issue in issues),
             "\n".join(issues),
         )
 

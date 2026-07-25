@@ -53,7 +53,9 @@ producer commit `44f49748d415e92b7d50b50d86b8fdea29f6cb07` and the
 repository-defined observed schema `hypercapnia-full-db-v1`. This
 owner-approved assignment is based on historical evidence; the upstream build
 did not preserve source-file hashes or a clean-worktree attestation and is not
-reproduced here.
+reproduced here. The selected derivations of `hypercap_on_abg` and
+`hypercap_resp_failure` were separately verified from the approved
+producer-commit Git object and are rechecked by the guarded input contract.
 
 With approved access to that file, create its adjacent local approval manifest
 once:
@@ -93,7 +95,7 @@ The runner:
   and completion artifacts;
 - revalidates the input bytes, adjacent approval, and tracked authority after
   analysis; and
-- writes `SUCCESS` only when all 40 expected legacy artifacts are present and
+- writes `SUCCESS` only when all 40 expected artifacts are present and
   nonempty.
 
 The input and output arguments may point to other approved local directories.
@@ -126,6 +128,18 @@ For a code change that is intended to preserve results:
      INPUT_ROOT="/approved/restricted/hypercapnia"
    ```
 
+For an owner-approved scientific correction, use the same protocol with
+`COMPARISON_MODE=correction`:
+
+   ```bash
+   make stata-compare \
+     COMPARISON_MODE=correction \
+     BASELINE_RUN="outputs/validation/baseline" \
+     CANDIDATE_RUN_1="outputs/validation/candidate-1" \
+     CANDIDATE_RUN_2="outputs/validation/candidate-2" \
+     INPUT_ROOT="/approved/restricted/hypercapnia"
+   ```
+
 Before assigning equivalence or repeatability labels, the comparator validates
 the current adjacent approval, requires a legacy baseline, requires two guarded
 candidates whose approval references match that manifest, and requires matching
@@ -142,9 +156,14 @@ normalized logs. It revalidates the input and approval immediately before
 reporting and atomically replaces any prior comparison report, so a stale pass
 cannot survive an incomplete comparison. It reports only discrepancy
 categories, locations, and hashes—not cell values or row-level content.
-Passing baseline equivalence and candidate repeatability are separate required
-conditions. A sanitized record of the completed HCD-000B validation is in
-[`VALIDATION.md`](VALIDATION.md); detailed evidence remains ignored and local.
+In equivalence mode, baseline equivalence and candidate repeatability are
+separate required conditions. In correction mode, historical differences are
+reported as correction impact and do not themselves fail the report, but
+candidate repeatability and all evidence-integrity gates remain required. The
+three intentionally renamed Figure 3, e-Figure 5, and both-test heatmap files
+are mapped explicitly to their historical names. A sanitized record of the
+completed HCD-000B validation is in [`VALIDATION.md`](VALIDATION.md); detailed
+evidence remains ignored and local.
 
 The public checks do not execute Stata and do not establish that article
 estimates were reproduced. A full reproduction claim requires a controlled run
@@ -158,22 +177,27 @@ This repository does not reproduce:
 - the TriNetX query or export;
 - diagnosis and procedure code-list construction;
 - laboratory extraction and calendar-day windowing;
-- derivation of upstream flags; or
+- derivation of upstream flags other than the two selected aggregates verified
+  below; or
 - assembly and validation of `full_db.dta`.
 
 The upstream repository and the owner-approved historical producer/schema
 assignment are recorded in `metadata/upstream_dependency.yml`. This assignment
 does not independently reproduce upstream construction. The historical build
-did not record source-file hashes or clean-worktree state, and complete
-variable-level derivations remain unavailable for review in this repository.
+did not record source-file hashes or clean-worktree state. The
+`hypercap_on_abg` and `hypercap_resp_failure` derivations were verified
+separately from the producer-commit Git object; complete derivations for other
+variables remain unavailable for review in this repository.
 
 ## Scientific Alignment Boundary
 
-The ten definitions in `metadata/phenotype_definitions.csv` are an inventory of
-the current Stata implementation, not clinical approval. Known differences
-between the final article and the current code are recorded in
+The ten definitions in `metadata/phenotype_definitions.csv` distinguish six
+owner-approved simulated rules from four definitions that remain unapproved.
+Approval applies only to the documented simulated rules, not to unavailable
+source-study exclusions, settings, or repeat-measurement criteria. Approved,
+pending-validation, and unresolved decisions are recorded in
 `docs/SCIENTIFIC_ALIGNMENT.md`. Public validation must preserve unresolved
-items rather than infer or approve a scientific resolution.
+items rather than infer an additional scientific resolution.
 
 ## Data-Safety Boundary
 
