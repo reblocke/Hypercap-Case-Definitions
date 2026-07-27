@@ -21,4 +21,4 @@ derivation_source_sha256: be64c9e09c32fa3615c523ebcfb75dbe631ecb8b87c05e7710fe94
 derivation_verification_date: 2026-07-24
 historical_clean_worktree_recorded: false
 historical_source_hashes_recorded: false
-notes: Producer assignment approved from the upstream preprocessing script, artifact timing, and Git reflog continuity. The selected aggregate phenotype derivations were verified from the producer-commit Git object, not from a preserved historical build record. The historical build did not record clean-worktree state or source-file hashes. This public repository does not reproduce upstream construction.
+notes: The producer assignment was adjudicated from the upstream preprocessing script, artifact timing, and Git reflog continuity. The selected aggregate phenotype derivations were verified from the producer-commit Git object, not from a preserved historical build record. The historical build did not record clean-worktree state or source-file hashes. This public repository does not reproduce upstream construction.

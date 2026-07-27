@@ -1,64 +1,69 @@
-# Reproducibility
+# Reproducibility Guide
 
-This repository is a public, article-specific analysis companion for:
+This repository accompanies:
 
 > Locke BW, et al. The Consistency of Hypercapnic Respiratory Failure Case
 > Definitions in Electronic Health Record Data. *CHEST*. 2026;169(1):230-243.
 > doi: [10.1016/j.chest.2025.08.002](https://doi.org/10.1016/j.chest.2025.08.002).
 
-The repository supports several different levels of reproducibility. They should
-not be treated as equivalent.
+The repository supports three distinct reproducibility layers. A successful
+check at one layer does not establish success at another.
 
-## Level 1: Public, Data-Free Checks
+## Public, Data-Free Checks
 
-A clean public clone can:
+A public clone can:
 
-- validate repository metadata and the public data-safety boundary;
-- validate the code-derived phenotype, dependency, input, and output metadata;
-- confirm that the tracked notebook is unexecuted and contains no embedded
-  outputs; and
-- execute the CONSORT-style diagram notebook using fixed published aggregate
-  counts.
+- validate repository metadata and data-safety rules;
+- check the documented phenotype, dependency, input, and output contracts;
+- confirm that the tracked notebook contains no execution state or embedded
+  output; and
+- render the cohort diagram from fixed published aggregate counts.
 
-Install the locked Python environment with Python 3.11:
+Use Python 3.11:
 
 ```bash
 python3 -m pip install --require-hashes -r requirements.txt
-```
-
-Run all data-free checks:
-
-```bash
 make check
-```
-
-Render the diagram:
-
-```bash
 make diagram-smoke
 ```
 
-The rendered notebook and TIFF are written under ignored `outputs/` paths. The
-smoke command reports the installed Graphviz version because Graphviz is a
-system dependency and image bytes may differ across versions or platforms.
+The diagram smoke test also requires the system Graphviz `dot` executable.
+Generated notebooks and figures are written under ignored `outputs/` paths.
+The notebook does not calculate its counts from patient-level data or Stata
+results.
 
-The notebook contains fixed aggregate counts from the published analysis. It
-does not calculate those counts from patient-level data or Stata outputs.
+These checks establish that the public repository is internally consistent and
+data-free. They do not reproduce the restricted analysis or validate article
+estimates.
 
-## Level 2: Restricted Downstream Analysis
+## Restricted Downstream Analysis
+
+### Required Input
 
 The Stata workflow starts with an analysis-ready, restricted encounter-level
-file named `full_db.dta`. The approved restricted input is bound to upstream
-producer commit `44f49748d415e92b7d50b50d86b8fdea29f6cb07` and the
-repository-defined observed schema `hypercapnia-full-db-v1`. This
-owner-approved assignment is based on historical evidence; the upstream build
-did not preserve source-file hashes or a clean-worktree attestation and is not
-reproduced here. The selected derivations of `hypercap_on_abg` and
-`hypercap_resp_failure` were separately verified from the approved
-producer-commit Git object and are rechecked by the guarded input contract.
+file named `full_db.dta`.
 
-With approved access to that file, create its adjacent local approval manifest
-once:
+The approved provenance record identifies:
+
+- upstream repository:
+  `https://github.com/reblocke/trinetx-hypercapnia-code`;
+- producer commit:
+  `44f49748d415e92b7d50b50d86b8fdea29f6cb07`; and
+- observed schema: `hypercapnia-full-db-v1`.
+
+This assignment was adjudicated from historical repository evidence. The
+historical build did not preserve source-file hashes or clean-worktree state,
+and this repository does not reproduce that build. The selected upstream
+derivations of `hypercap_on_abg` and `hypercap_resp_failure` were separately
+verified from the producer-commit Git object. Other upstream derivations remain
+outside the verified scope.
+
+The complete public provenance record is
+[`metadata/upstream_dependency.yml`](../metadata/upstream_dependency.yml).
+
+### Input Approval
+
+Create an adjacent local approval manifest before the first run:
 
 ```bash
 make input-approve \
@@ -66,14 +71,15 @@ make input-approve \
   APPROVE_RESTRICTED_INPUT=YES
 ```
 
-This writes ignored `full_db.manifest.json` beside `full_db.dta`. Its exact
-fields are `schema_version`, `logical_name`, `size_bytes`, `sha256`,
-`approved_at_utc`, `upstream_repository`, `producer_commit`,
-`input_schema_version`, and `data_dictionary_sha256`. It contains no local path,
-row count, or patient-level value. Replacement requires the separate explicit
-setting `REPLACE_APPROVED_INPUT=YES`.
+The command writes ignored `full_db.manifest.json` beside `full_db.dta`. The
+manifest binds the input bytes to the approved producer, schema, and current
+data-dictionary contract. It contains no local path, row count, or patient-level
+value. Replacing an existing approval also requires
+`REPLACE_APPROVED_INPUT=YES`.
 
-With licensed Stata, the canonical guarded command is:
+### Guarded Stata Run
+
+Run the analysis from the repository root:
 
 ```bash
 make stata-run \
@@ -82,43 +88,34 @@ make stata-run \
   OUTPUT_ROOT="outputs/stata"
 ```
 
-The runner:
+`make stata-run` is the sole supported scientific execution interface.
 
-- refuses a missing or unapproved input, approval drift, unsafe run identifier,
-  or existing run directory;
-- records the analysis commit, dirty-worktree state, input and code hashes,
-  approved producer/schema reference, Stata environment, and dependency hashes
-  in an ignored manifest;
-- preflights required community Stata dependencies;
-- validates all documented runtime inputs before analysis;
-- requires both a zero Stata process return code and explicit successful status
-  and completion artifacts;
-- revalidates the input bytes, adjacent approval, and tracked authority after
-  analysis; and
-- writes `SUCCESS` only when all 40 expected artifacts are present and
-  nonempty.
+The guarded runner:
 
-The input and output arguments may point to other approved local directories.
-Neither the restricted input, the local manifest, detailed comparison report,
-nor row-level derivatives may be committed.
+- rejects missing, unapproved, changed, or contract-incompatible input;
+- rejects unsafe or colliding run identifiers and split analysis checkouts;
+- records the analysis commit, dirty state, input and code hashes, environment,
+  and dependency hashes;
+- checks required community Stata commands before analysis;
+- requires a zero Stata process exit, fresh successful status, explicit
+  completion, and the complete expected artifact inventory;
+- revalidates the input and approval after analysis; and
+- writes `SUCCESS` only after every required condition passes.
 
-`make stata-run` is the sole supported scientific execution interface. The
-internal legacy argument mode is retained only to interpret preserved
-historical validation evidence and must not be used to create new scientific
-runs. The runner and analysis root must resolve to the same checkout so the
-recorded commit, dirty state, harness hashes, and executed files describe one
-tree.
+Every run receives a unique ignored directory under `outputs/stata/`. Run
+manifests, logs, copied analysis files, tables, figures, and temporary Stata
+graphs remain local.
 
 ## Restricted Validation Protocol
 
-For a code change that is intended to preserve results:
+Use this protocol when assessing a change to the scientific analysis or guarded
+execution workflow:
 
-1. Use clean, isolated checkouts of the named baseline and candidate commits.
-2. Validate the adjacent restricted-input approval before each run.
-3. Reuse the preserved legacy baseline; do not create a new scientific
-   baseline through direct do-file invocation.
-4. Run the candidate twice using different run identifiers.
-5. Compare the three isolated outputs with:
+1. Use clean, isolated checkouts for the preserved baseline and candidate.
+2. Validate the same adjacent restricted-input approval before every run.
+3. Reuse the preserved historical baseline.
+4. Run the candidate twice with distinct run identifiers and directories.
+5. Compare the baseline and both candidates:
 
    ```bash
    make stata-compare \
@@ -128,85 +125,67 @@ For a code change that is intended to preserve results:
      INPUT_ROOT="/approved/restricted/hypercapnia"
    ```
 
-For an owner-approved scientific correction, use the same protocol with
+For an explicitly adjudicated scientific correction, add
 `COMPARISON_MODE=correction`:
 
-   ```bash
-   make stata-compare \
-     COMPARISON_MODE=correction \
-     BASELINE_RUN="outputs/validation/baseline" \
-     CANDIDATE_RUN_1="outputs/validation/candidate-1" \
-     CANDIDATE_RUN_2="outputs/validation/candidate-2" \
-     INPUT_ROOT="/approved/restricted/hypercapnia"
-   ```
+```bash
+make stata-compare \
+  COMPARISON_MODE=correction \
+  BASELINE_RUN="outputs/validation/baseline" \
+  CANDIDATE_RUN_1="outputs/validation/candidate-1" \
+  CANDIDATE_RUN_2="outputs/validation/candidate-2" \
+  INPUT_ROOT="/approved/restricted/hypercapnia"
+```
 
-Before assigning equivalence or repeatability labels, the comparator validates
-the current adjacent approval, requires a legacy baseline, requires two guarded
-candidates whose approval references match that manifest, and requires matching
-nonempty candidate commit identifiers plus distinct nonempty candidate run
-identifiers. A preserved legacy baseline may lack the new approval reference;
-if it records one, that reference must match. Every artifact root must resolve
-inside its own run directory and remain distinct from the other artifact
-roots. The comparator recomputes the artifact and completion-control inventory
-from disk, rehashes the current input, and compares that hash with every run
-manifest even when no optional expected-hash pin is supplied. It then checks
-environment and input identity, dependency hashes, semantic workbook content,
-decoded PNG pixels, required nonempty Stata graph files, copied-do hashes, and
-normalized logs. It revalidates the input and approval immediately before
-reporting and atomically replaces any prior comparison report, so a stale pass
-cannot survive an incomplete comparison. It reports only discrepancy
-categories, locations, and hashes—not cell values or row-level content.
-Absolute paths to known expected artifacts embedded in Stata file notifications
-are normalized only when they share one artifact root, so relocating a
-preserved run into another ignored archive does not create a path-only
-difference. Inconsistent roots, unknown paths, and substantive transcript
-differences remain comparison failures.
-In equivalence mode, baseline equivalence and candidate repeatability are
-separate required conditions. In correction mode, historical differences are
-reported as correction impact and do not themselves fail the report, but
-candidate repeatability and all evidence-integrity gates remain required. The
-three intentionally renamed Figure 3, e-Figure 5, and both-test heatmap files
-are mapped explicitly to their historical names. A sanitized record of the
-completed HCD-000B validation is in [`VALIDATION.md`](VALIDATION.md); detailed
-evidence remains ignored and local.
+Before reporting a result, the comparator verifies:
 
-The public checks do not execute Stata and do not establish that article
-estimates were reproduced. A full reproduction claim requires a controlled run
-against the approved input, the required community-contributed Stata commands,
-and a documented software environment.
+- one legacy baseline and two guarded candidates;
+- matching nonempty candidate commits and distinct candidate run identifiers;
+- contained, distinct artifact roots and live completion controls;
+- current input and approval identity across all runs;
+- environment and dependency compatibility;
+- semantic workbook content, decoded image pixels, required Stata graph files,
+  copied analysis files, and normalized analysis logs; and
+- candidate repeatability.
 
-## Level 3: Upstream TriNetX Construction
+The comparator reports discrepancy categories, locations, and hashes. It does
+not expose workbook values or row-level log content.
+
+In equivalence mode, baseline equivalence and candidate repeatability must both
+pass. In correction mode, baseline differences are classified as correction
+impact, while candidate repeatability and all evidence-integrity checks remain
+mandatory. A correction-mode pass does not mean that corrected artifacts are
+equivalent to the historical baseline.
+
+Sanitized results are in [`VALIDATION.md`](VALIDATION.md). Detailed reports,
+hashes, manifests, logs, and generated artifacts remain ignored and local.
+
+## Upstream TriNetX Construction
 
 This repository does not reproduce:
 
 - the TriNetX query or export;
-- diagnosis and procedure code-list construction;
+- diagnosis and procedure code lists;
 - laboratory extraction and calendar-day windowing;
-- derivation of upstream flags other than the two selected aggregates verified
-  below; or
+- most upstream variable derivations; or
 - assembly and validation of `full_db.dta`.
 
-The upstream repository and the owner-approved historical producer/schema
-assignment are recorded in `metadata/upstream_dependency.yml`. This assignment
-does not independently reproduce upstream construction. The historical build
-did not record source-file hashes or clean-worktree state. The
-`hypercap_on_abg` and `hypercap_resp_failure` derivations were verified
-separately from the producer-commit Git object; complete derivations for other
-variables remain unavailable for review in this repository.
+Reproducing those steps requires the upstream preprocessing repository,
+appropriate TriNetX access, and historical source evidence that is not
+available here.
 
-## Scientific Alignment Boundary
+## Scientific Alignment
 
-The ten definitions in `metadata/phenotype_definitions.csv` distinguish six
-owner-approved simulated rules from four definitions that remain unapproved.
-Approval applies only to the documented simulated rules, not to unavailable
-source-study exclusions, settings, or repeat-measurement criteria. Resolved and
-unresolved decisions are recorded in `docs/SCIENTIFIC_ALIGNMENT.md`. Public
-validation must preserve unresolved items rather than infer an additional
-scientific resolution.
+The phenotype inventory distinguishes six adjudicated simulated rules from four
+definitions whose source alignment remains unresolved. The adjudication applies
+only to the documented simulated rules, not to unavailable source-study
+exclusions, settings, or repeat-measurement criteria.
 
-## Data-Safety Boundary
+See [`SCIENTIFIC_ALIGNMENT.md`](SCIENTIFIC_ALIGNMENT.md) before changing any
+case definition, model, time window, missingness rule, or figure logic.
 
-Do not add PHI, restricted TriNetX data, row-level derived data, credentials,
+## Data Safety
+
+Do not add PHI, restricted TriNetX data, row-level derivatives, credentials,
 machine-specific paths, private drafts, or publisher-formatted article files.
-Generated notebooks, figures, tables, logs, and Stata files belong under ignored
-`outputs/` paths.
+Do not attach restricted or generated artifacts to public releases.
