@@ -58,6 +58,7 @@ def copy_identity_surface(destination: Path) -> None:
         "README.md",
         "llms.txt",
         "CITATION.cff",
+        "CHANGELOG.md",
         "AGENTS.md",
         "data_dictionary.md",
         "docs/REPRODUCIBILITY.md",
@@ -77,6 +78,17 @@ class PublicSurfaceUnitTests(unittest.TestCase):
         local_path = "/" + "Users" + "/person/project/file.txt"
         issues = audit.content_issues(PurePosixPath("example.md"), local_path)
         self.assertTrue(any("user-home" in issue for issue in issues))
+
+    def test_internal_front_door_language_is_detected(self) -> None:
+        for text in (
+            "HCD-001 implementation milestone",
+            "TODO: revise this for us to review",
+            "evidence-hardening re-adjudication",
+            "the 40-artifact implementation detail",
+        ):
+            with self.subTest(text=text):
+                issues = audit.content_issues(PurePosixPath("README.md"), text)
+                self.assertTrue(issues, text)
 
     def test_restricted_path_is_detected(self) -> None:
         issues = audit.path_issues(PurePosixPath("data/private/full_db.dta"))
@@ -207,6 +219,50 @@ class PublicSurfaceUnitTests(unittest.TestCase):
                 (root / name).write_text("incorrect metadata\n", encoding="utf-8")
             issues = audit.validate_identity(root)
         self.assertTrue(any("canonical identity token" in issue for issue in issues))
+
+    def test_release_identity_drift_is_detected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            copy_identity_surface(root)
+            readme = root / "README.md"
+            readme.write_text(
+                readme.read_text(encoding="utf-8").replace(
+                    audit.CURRENT_RELEASE_URL,
+                    "https://example.invalid/current-release",
+                ),
+                encoding="utf-8",
+            )
+            issues = audit.validate_identity(root)
+        self.assertTrue(
+            any(
+                "README.md: missing canonical identity token" in issue
+                and audit.CURRENT_RELEASE_URL in issue
+                for issue in issues
+            ),
+            "\n".join(issues),
+        )
+
+    def test_citation_release_metadata_is_required(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            copy_identity_surface(root)
+            citation = root / "CITATION.cff"
+            citation.write_text(
+                citation.read_text(encoding="utf-8").replace(
+                    f'version: "{audit.CURRENT_RELEASE}"',
+                    'version: "development"',
+                ),
+                encoding="utf-8",
+            )
+            issues = audit.validate_identity(root)
+        self.assertTrue(
+            any(
+                "CITATION.cff: missing canonical identity token" in issue
+                and audit.CURRENT_RELEASE in issue
+                for issue in issues
+            ),
+            "\n".join(issues),
+        )
 
     def test_upstream_producer_schema_and_verification_are_enforced(self) -> None:
         mutations = {

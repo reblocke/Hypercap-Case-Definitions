@@ -2,71 +2,76 @@
 
 Repository: https://github.com/reblocke/Hypercap-Case-Definitions
 
-Purpose: Public repository for Stata analysis code and a Python/Graphviz CONSORT-style diagram supporting the CHEST article "The Consistency of Hypercapnic Respiratory Failure Case Definitions in Electronic Health Record Data."
+Purpose: Stata analysis code and a Python/Graphviz cohort diagram supporting the
+CHEST article "The Consistency of Hypercapnic Respiratory Failure Case
+Definitions in Electronic Health Record Data."
 
-Primary article:
+Article:
 - DOI: https://doi.org/10.1016/j.chest.2025.08.002
 - PubMed: https://pubmed.ncbi.nlm.nih.gov/40885535/
-- PubMed Central / NLM full text: https://pmc.ncbi.nlm.nih.gov/articles/PMC12739763/
+- PubMed Central: https://pmc.ncbi.nlm.nih.gov/articles/PMC12739763/
 - Citation: CHEST. 2026;169(1):230-243.
+- First published online: 2025-08-28.
+
+Releases:
+- Current: v2.0.0, LLM-assisted reproducibility and scientific-alignment update.
+- Paper-associated: v1.0.0, validated historical implementation before the
+  current scientific-alignment corrections.
+- Releases: https://github.com/reblocke/Hypercap-Case-Definitions/releases
+- v2.0.0: https://github.com/reblocke/Hypercap-Case-Definitions/releases/tag/v2.0.0
+- v1.0.0: https://github.com/reblocke/Hypercap-Case-Definitions/releases/tag/v1.0.0
 
 Data boundary:
-- Required patient-level input is TriNetX-derived and restricted.
-- Expected local input path is data/private/full_db.dta.
-- The public repository starts with the prepared full_db.dta and does not reproduce the upstream query, export, code lists, laboratory windows, or analytic-dataset construction.
-- The approved restricted input is bound to upstream producer commit 44f49748d415e92b7d50b50d86b8fdea29f6cb07 and observed schema hypercapnia-full-db-v1 through owner-approved historical evidence.
-- The historical upstream build did not preserve source-file hashes or clean-worktree attestation and is not reproduced here.
-- The hypercap_on_abg and hypercap_resp_failure derivations were separately verified from the approved producer-commit Git object; other upstream variable derivations remain outside the verified scope.
-- Do not commit raw data, derived row-level data, local workbooks, generated .dta files, logs, or outputs.
-- Use the PMC/NLM article link for accessible article text; do not copy publisher-hosted article text into repository docs.
+- Patient-level TriNetX data are restricted and are not included.
+- The Stata workflow starts with a locally supplied, analysis-ready full_db.dta.
+- The public repository does not reproduce the upstream TriNetX query, export,
+  code lists, laboratory windowing, or analytic-dataset construction.
+- Obtain data under an applicable institutional TriNetX agreement.
+- Do not commit patient-level data, derived row-level data, credentials, local
+  paths, generated .dta files, logs, or analysis outputs.
+- Public checks do not reproduce the restricted analysis or article estimates.
 
-Workflow:
-- Public validation command: make check
-- Public diagram command: make diagram-smoke
-- Restricted input approval command: make input-approve
-- Guarded restricted Stata command: make stata-run
-- Restricted comparison command: make stata-compare
-- Restricted scientific-correction comparison: make stata-compare COMPARISON_MODE=correction
-- Public Python version: 3.11
-- Install locked public dependencies with: python3 -m pip install --require-hashes -r requirements.txt
-- The guarded runner accepts INPUT_ROOT, OUTPUT_ROOT, STATA_BIN, RUN_ID, and optional EXPECTED_INPUT_SHA256 make variables.
-- INPUT_ROOT is the directory containing full_db.dta.
-- Before the first run, use APPROVE_RESTRICTED_INPUT=YES with make input-approve to write ignored full_db.manifest.json adjacent to the data; replacing it also requires REPLACE_APPROVED_INPUT=YES.
-- make stata-run is the sole supported scientific execution interface. Internal legacy argument handling exists only to interpret preserved historical validation evidence.
-- The restricted comparator requires one legacy baseline, two guarded
-  candidates from the same nonempty commit whose approval references match the
-  current adjacent manifest, and a current input that still matches all three
-  run manifests.
-- The make diagram-smoke target invokes nbconvert with an explicit notebook output format and the active locked environment's python3 kernelspec.
-- The notebook requires the Python graphviz package and the system Graphviz dot executable.
-- The notebook renders fixed published counts; it does not derive them from data or validate article estimates.
+Canonical workflows:
+- Install locked public dependencies:
+  python3 -m pip install --require-hashes -r requirements.txt
+- Public checks: make check
+- Cohort-diagram smoke test: make diagram-smoke
+- Approve an eligible restricted input: make input-approve
+- Run the guarded Stata workflow: make stata-run
+- Compare one preserved baseline and two candidates: make stata-compare
+- make stata-run is the sole supported scientific execution interface.
 
 Key files:
-- README.md: human-facing project overview, article links, run commands, license, and data restrictions.
-- Hypercapnia Case Definitions.do: Stata workflow for case-definition emulation, agreement analyses, tables, and figures.
-- scripts/run_stata.sh and scripts/stata_run.py: restricted-data runner, provenance capture, and output-completeness gate.
-- scripts/input_manifest.py: adjacent restricted-input approval and validation.
-- scripts/compare_stata_runs.py: baseline-equivalence or correction-impact and candidate-repeatability comparator that suppresses result values.
-- stata/: Stata dependency preflight, input-contract validation, and neutral driver.
-- Case Definitions Consort.ipynb: Graphviz diagram notebook for the case-definition flow figure.
-- data_dictionary.md and data_dictionary.csv: input, derived-variable, and case-definition documentation.
-- docs/REPRODUCIBILITY.md: public, restricted downstream, and upstream reproducibility boundary.
-- docs/VALIDATION.md: sanitized equivalence, correction-impact, and repeatability results from clean restricted validation runs.
-- docs/SCIENTIFIC_ALIGNMENT.md: resolved and unresolved final-article versus current-code decisions.
-- metadata/: phenotype approval inventory, upstream dependency record, Stata dependency inventory, and output manifest.
-- CITATION.cff: structured repository and article citation metadata.
-- AGENTS.md: repo-specific instructions for future coding agents.
+- README.md: reader-facing overview, release status, boundaries, and quick start.
+- Hypercapnia Case Definitions.do: scientific Stata analysis.
+- Case Definitions Consort.ipynb: fixed-count cohort-diagram notebook.
+- data_dictionary.md and data_dictionary.csv: input and derived-variable
+  documentation.
+- metadata/phenotype_definitions.csv: implemented phenotype rules and source
+  alignment.
+- metadata/stata_dependencies.csv: required community Stata commands.
+- metadata/output_manifest.csv: expected generated artifacts.
+- metadata/upstream_dependency.yml: approved upstream provenance record and
+  limitations.
+- docs/REPRODUCIBILITY.md: execution and reproducibility boundary.
+- docs/VALIDATION.md: value-suppressed restricted validation evidence.
+- docs/SCIENTIFIC_ALIGNMENT.md: resolved and unresolved article-to-code
+  decisions.
+- CITATION.cff: structured article and repository citation metadata.
+- AGENTS.md: repository constraints for automated coding tools.
 
-Outputs:
-- Guarded Stata logs, manifests, copied do-files, tables, figures, and temporary graph files are written under outputs/stata/<run_id>/.
-- Generated CONSORT diagram files are written under outputs/figures/.
-- Generated outputs are local artifacts and should not be committed to the default branch.
+Scientific status:
+- v1.0.0 preserves the paper-associated historical implementation.
+- v2.0.0 includes documented, human-adjudicated scientific corrections.
+- Four scientific-alignment questions remain unresolved and must not be
+  silently inferred or changed.
+- LLM tools assisted repository review, reproducibility hardening, and
+  documentation; scientific decisions were made by the repository maintainer
+  and study author.
 
-Agent cautions:
-- Preserve analysis logic unless explicitly asked to change the scientific methods.
-- Preserve the distinction between the six owner-approved simulated phenotype rules and the four unresolved definitions in the phenotype metadata.
-- Do not convert blocked, draft, or needs_review variable-level derivations or scientific items to verified without source evidence and owner approval.
-- Keep path changes repo-root relative and argument-driven.
-- Maintain the data dictionary when adding or renaming variables.
-- Validate CITATION.cff after metadata edits.
-- Avoid generic "LLM readiness" appendix text; integrate machine-readable information into normal README sections and this llms.txt file.
+Repository constraints:
+- Preserve scientific code and data contracts unless a change is explicitly
+  authorized and validated.
+- Keep generated artifacts under ignored outputs/ paths.
+- Link to DOI, PubMed, and PMC records rather than copying article text.
+- Use docs/REPRODUCIBILITY.md before any restricted run or comparison.

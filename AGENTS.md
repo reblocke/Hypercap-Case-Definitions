@@ -1,26 +1,45 @@
-# AGENTS
+# Repository Instructions for Coding Agents
 
-## Project Purpose
+## Purpose
 
-This public repository contains Stata analysis code and a Python/Graphviz diagram notebook for the CHEST article "The Consistency of Hypercapnic Respiratory Failure Case Definitions in Electronic Health Record Data."
+This public repository contains Stata analysis code and a Python/Graphviz cohort
+diagram notebook for the *CHEST* article “The Consistency of Hypercapnic
+Respiratory Failure Case Definitions in Electronic Health Record Data.”
 
 ## Public and Data-Safety Rules
 
-- Do not add PHI, restricted TriNetX datasets, row-level derived data, credentials, local paths, private drafts, or publisher-formatted article files.
-- Treat `data/private/full_db.dta`, any `Data/` directory, and generated `.dta` files as local-only restricted artifacts.
-- Link DOI, PubMed, and PMC/NLM records instead of copying article text into repository docs.
-- Keep generated outputs under ignored `outputs/` paths unless an explicit release workflow says otherwise.
+- Do not add PHI, restricted TriNetX datasets, row-level derivatives,
+  credentials, machine-specific paths, private drafts, or
+  publisher-formatted article files.
+- Treat `data/private/full_db.dta`, any `Data/` directory, and generated `.dta`
+  files as local-only restricted artifacts.
+- Keep generated outputs under ignored `outputs/` paths.
+- Do not attach restricted data, generated results, logs, or local manifests to
+  public releases.
+- Link to DOI, PubMed, and PMC records instead of copying article text.
 
-## How to Orient Quickly
+## Orientation
 
-- Start with `README.md` for the human-facing overview and run commands.
+- Start with `README.md` for the public overview and supported commands.
 - Use `llms.txt` for the concise machine-readable project index.
-- Use `data_dictionary.md` and `data_dictionary.csv` before changing variable names, labels, or case-definition logic.
-- Use `CITATION.cff` for structured citation metadata.
+- Read `data_dictionary.md` and `data_dictionary.csv` before changing variables
+  or case-definition logic.
+- Read `docs/SCIENTIFIC_ALIGNMENT.md` before changing scientific behavior.
+- Use `CITATION.cff` for structured citation and release metadata.
 
-## Workflow
+## Releases
 
-Canonical Stata command from the repository root:
+- `v1.0.0` is the paper-associated historical implementation.
+- `v2.0.0` is the current LLM-assisted reproducibility and
+  scientific-alignment update.
+- Do not move, recreate, or delete release tags.
+- Do not describe the public checks as reproduction of the restricted analysis
+  or article estimates.
+
+## Supported Workflow
+
+Approve an eligible restricted input and run the Stata analysis from the
+repository root:
 
 ```bash
 make input-approve INPUT_ROOT="/approved/restricted/hypercapnia" APPROVE_RESTRICTED_INPUT=YES
@@ -28,53 +47,58 @@ make stata-run STATA_BIN="/path/to/stata" INPUT_ROOT="/approved/restricted/hyper
 ```
 
 `INPUT_ROOT` contains `full_db.dta` and its ignored adjacent
-`full_db.manifest.json`; `OUTPUT_ROOT` defaults to `outputs/stata`.
-`make stata-run` is the sole supported scientific execution interface. The
-guarded runner must fail clearly for a missing or unapproved input, approval
-drift, dependency, unsafe or colliding run ID, failed input contract, failed
-Stata status, or incomplete legacy artifact inventory.
+`full_db.manifest.json`. `OUTPUT_ROOT` defaults to `outputs/stata`.
+`make stata-run` is the sole supported scientific execution interface.
 
-For equivalence validation, reuse the preserved legacy baseline and run the
-guarded candidate twice in clean isolated checkouts, then invoke:
+For controlled validation, reuse the preserved legacy baseline and run the
+candidate twice in clean isolated checkouts:
 
 ```bash
 make stata-compare BASELINE_RUN="..." CANDIDATE_RUN_1="..." CANDIDATE_RUN_2="..." INPUT_ROOT="..."
 ```
 
-Keep manifests, dependency hashes, input hashes, comparison details, and all
-generated results under ignored `outputs/` paths. A public validation summary
-may name commits, environment, checks, and pass/fail status only.
-
-Optional CONSORT notebook workflow:
-
-```bash
-python3 -m pip install --require-hashes -r requirements.txt
-make diagram-smoke
-```
-
-The notebook requires the Python `graphviz` package and the system Graphviz `dot` binary.
+Keep manifests, hashes, comparison reports, and generated results in ignored
+`outputs/` paths. Public validation summaries may report commits, environments,
+checks, and pass/fail outcomes, but not result values or row-level content.
 
 Public data-free verification:
 
 ```bash
+python3 -m pip install --require-hashes -r requirements.txt
 make check
 make diagram-smoke
 ```
 
-Passing public checks does not establish that the restricted Stata analysis or
-article estimates were reproduced.
+The diagram workflow requires the Python `graphviz` package and the system
+Graphviz `dot` executable.
 
-## Verification Before Publishing Changes
+## Change Discipline
+
+- Preserve scientific logic unless a change is explicitly authorized and
+  validated.
+- Preserve unresolved scientific-alignment items rather than inferring a
+  resolution.
+- Preserve machine-readable approval enums, input contracts, and dependency
+  requirements.
+- Keep path handling repository-relative and argument-driven.
+- Update the data dictionary when adding or renaming variables.
+- Avoid unrelated refactors, formatting churn, and speculative abstractions.
+
+## Verification Before Publication
 
 - Run `git diff --check`.
-- Run `make check`.
+- Run `make check` with the locked Python 3.11 environment.
 - Run `make diagram-smoke` when Python 3.11 and Graphviz are available.
-- Validate `CITATION.cff` as YAML and, when available, with `cffconvert`.
-- Confirm no hard-coded user-home paths, Windows local paths, legacy generated-output roots, root `.gph`, root `.log`, or restricted-data paths are introduced.
-- Confirm the guarded runner is collision-safe and that `SUCCESS` cannot be written without a zero Stata process return code, fresh Stata status, completion, and all 40 legacy artifacts.
-- Confirm new runs cannot resolve or launch Stata without a valid adjacent input approval matching the tracked producer/schema and data dictionary.
-- Confirm the runner revalidates that approval before `SUCCESS`; the comparator revalidates it after comparisons, requires distinct candidate run IDs, rechecks controls on disk, and rejects escaping or aliased artifact roots.
-- Confirm the runner rejects a split runner/analysis checkout before creating a run directory.
-- Confirm comparison reports never expose workbook values or row-level log content.
-- Confirm README, `llms.txt`, `CITATION.cff`, and the data dictionary agree on DOI `10.1016/j.chest.2025.08.002`, PMID `40885535`, PMCID `PMC12739763`, and the restricted TriNetX data boundary.
-- If Stata is unavailable or the restricted data are absent, document the skipped smoke check rather than creating synthetic patient-like data.
+- Validate `CITATION.cff` with `cffconvert`.
+- Confirm no user-home paths, Windows local paths, restricted artifacts, or
+  generated root-level files are tracked.
+- Confirm the guarded runner cannot report success without an approved,
+  unchanged input, a zero Stata process exit, fresh status and completion
+  controls, and the complete required artifact inventory.
+- Confirm the comparator requires independent candidate evidence, contained
+  artifact roots, live completion controls, and current input identity.
+- Confirm README, `llms.txt`, `CITATION.cff`, and the data dictionary agree on
+  DOI `10.1016/j.chest.2025.08.002`, PMID `40885535`, PMCID `PMC12739763`, and
+  the restricted TriNetX boundary.
+- If Stata or the restricted input is unavailable, document the skipped
+  restricted run rather than creating synthetic patient-like data.

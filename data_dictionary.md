@@ -27,9 +27,10 @@ without missing upstream documentation.
 
 The approved restricted input is bound to upstream producer commit
 `44f49748d415e92b7d50b50d86b8fdea29f6cb07` and the repository-defined
-observed schema `hypercapnia-full-db-v1`. This owner-approved assignment is
-based on historical evidence; the upstream build did not preserve source-file
-hashes or a clean-worktree attestation and is not reproduced here. The
+observed schema `hypercapnia-full-db-v1`. This assignment is based on historical
+evidence adjudicated by the repository maintainer and study author; the
+upstream build did not preserve source-file hashes or a clean-worktree
+attestation and is not reproduced here. The
 derivations of `hypercap_on_abg` and `hypercap_resp_failure` were separately
 verified from the producer-commit Git object and are rechecked by the guarded
 input contract. This does not verify any other source-variable derivation marked
@@ -43,7 +44,7 @@ input contract. This does not verify any other source-variable derivation marked
 | Encounter setting | `is_emer`, `is_inp`, `location` | Analysis keeps emergency or inpatient encounters and uses `location` for regional sensitivity analyses. |
 | Demographics | `age_at_encounter`, `female`, `sex`, `black_race`, `race`, `hisp_eth`, `ethnicity`, `bmi` | Public documentation avoids row-level values. `sex`, `race`, and `ethnicity` are context-only fields; the analysis uses the corresponding derived flags. |
 | First-day blood gas and chemistry | `paco2`, `paco2_flag`, `highest_paco2_flag`, `vbg_co2`, `vbg_ph`, `vbg_po2`, `highest_vbg_co2_flag`, `vbg_or_abg_co2_flag`, `has_abg`, `has_vbg`, `has_vbg_and_cat`, `abg_ph`, `serum_hco3`, `acidemia`, `hypercap_on_abg` | First-calendar-day lab resolution follows TriNetX constraints. |
-| Comorbidities | `chf`, `ckd`, `copd`, `nmd`, `osa`, `prim_met_alk`, `combo_met_alk` | Used for cohort description and reviewer-response summaries. |
+| Comorbidities | `chf`, `ckd`, `copd`, `nmd`, `osa`, `prim_met_alk`, `combo_met_alk` | Used for cohort description and secondary summaries. |
 | Diagnoses and procedures | `hypercap_resp_failure`, `ohs_code`, `has_j9602`, `has_j9612`, `has_j9622`, `has_j9692`, `has_j9600`, `has_j9601`, `has_j9610`, `has_j9611`, `has_j9620`, `has_j9621`, `has_j9690`, `has_j9691`, `resp_acid_dx`, `sleep_hypovent_dx`, `cchs_dx`, `other_sleep_hypovent_dx`, `other_abn_of_br`, `vent_proc`, `niv_proc`, `imv_proc`, `cc_time` | Binary flags derived upstream from diagnosis/procedure code lists. |
 | Mortality and follow-up | `died`, `months_death_or_cens` | Used for survival analyses and short-term mortality indicators. |
 
@@ -92,4 +93,4 @@ criteria were implemented.
 - `metadata/stata_dependencies.csv` records directly invoked
   community-contributed commands and the graphics scheme.
 - `metadata/upstream_dependency.yml` records the restricted input boundary and
-  the owner-approved historical producer/schema assignment and its limitations.
+  the adjudicated historical producer/schema assignment and its limitations.

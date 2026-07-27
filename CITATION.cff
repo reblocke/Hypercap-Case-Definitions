@@ -2,10 +2,22 @@ cff-version: 1.2.0
 message: "If you use this repository, please cite both the CHEST article and the repository commit or release used."
 title: "Hypercapnic Respiratory Failure Case Definitions: repository materials"
 type: software
+version: "v2.0.0"
+date-released: 2026-07-27
 repository-code: "https://github.com/reblocke/Hypercap-Case-Definitions"
 url: "https://github.com/reblocke/Hypercap-Case-Definitions"
 license: MIT
 abstract: "Repository materials for Stata analyses comparing electronic-health-record case definitions for hypercapnic respiratory failure."
+identifiers:
+  - type: url
+    value: "https://github.com/reblocke/Hypercap-Case-Definitions/releases/tag/v2.0.0"
+    description: "Current software release"
+  - type: url
+    value: "https://pubmed.ncbi.nlm.nih.gov/40885535/"
+    description: "PubMed record for the associated article"
+  - type: url
+    value: "https://pmc.ncbi.nlm.nih.gov/articles/PMC12739763/"
+    description: "PubMed Central record for the associated article"
 keywords:
   - hypercapnic respiratory failure
   - case definitions

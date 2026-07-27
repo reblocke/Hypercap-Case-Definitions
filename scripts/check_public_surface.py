@@ -20,6 +20,19 @@ EXPECTED_IDENTITY = {
     "pmcid": "PMC12739763",
     "repository": "https://github.com/reblocke/Hypercap-Case-Definitions",
 }
+ARTICLE_TITLE = (
+    "The Consistency of Hypercapnic Respiratory Failure Case Definitions "
+    "in Electronic Health Record Data"
+)
+CURRENT_RELEASE = "v2.0.0"
+PAPER_RELEASE = "v1.0.0"
+CURRENT_RELEASE_URL = (
+    "https://github.com/reblocke/Hypercap-Case-Definitions/releases/tag/v2.0.0"
+)
+PAPER_RELEASE_URL = (
+    "https://github.com/reblocke/Hypercap-Case-Definitions/releases/tag/v1.0.0"
+)
+RELEASE_DATE = "2026-07-27"
 
 APPROVED_PRODUCER_COMMIT = "44f49748d415e92b7d50b50d86b8fdea29f6cb07"
 APPROVED_INPUT_SCHEMA = "hypercapnia-full-db-v1"
@@ -62,6 +75,29 @@ DIRECT_STATA_COMMAND = re.compile(
 VALID_REVIEW_STATUSES = {"blocked", "draft", "needs_review", "verified"}
 VALID_WORKFLOW_ROLES = {"context_only", "derived_analysis", "runtime_input"}
 VALID_UPSTREAM_STATUSES = {"blocked", "needs_review", "not_applicable", "verified"}
+FRONT_DOOR_FILES = {
+    PurePosixPath("README.md"),
+    PurePosixPath("llms.txt"),
+    PurePosixPath("CHANGELOG.md"),
+}
+INTERNAL_FRONT_DOOR_PATTERNS = {
+    "internal milestone identifier": re.compile(
+        r"\b(?:HCD|SA)-\d{3}\b",
+        re.IGNORECASE,
+    ),
+    "maintainer planning marker": re.compile(
+        r"\b(?:TODO|TBD|note(?:s)? to self|for us to|Codex ticket)\b",
+        re.IGNORECASE,
+    ),
+    "implementation-history jargon": re.compile(
+        r"\b(?:review-remediation|evidence-hardening|re-adjudicat\w*)\b",
+        re.IGNORECASE,
+    ),
+    "artifact-count implementation detail": re.compile(
+        r"\b40[- ]artifact\b",
+        re.IGNORECASE,
+    ),
+}
 
 
 def tracked_files(root: Path = ROOT) -> list[PurePosixPath]:
@@ -109,6 +145,10 @@ def content_issues(path: PurePosixPath, text: str) -> list[str]:
         issues.append(f"{path}: Linux user-home path")
     if windows_user_prefix.lower() in text.lower():
         issues.append(f"{path}: Windows user-home path")
+    if path in FRONT_DOOR_FILES:
+        for label, pattern in INTERNAL_FRONT_DOOR_PATTERNS.items():
+            if pattern.search(text):
+                issues.append(f"{path}: {label}")
     return issues
 
 
@@ -515,11 +555,32 @@ def validate_metadata(root: Path = ROOT) -> list[str]:
 def validate_identity(root: Path = ROOT) -> list[str]:
     issues: list[str] = []
     requirements = {
-        "README.md": EXPECTED_IDENTITY.values(),
-        "llms.txt": EXPECTED_IDENTITY.values(),
+        "README.md": (
+            *EXPECTED_IDENTITY.values(),
+            ARTICLE_TITLE,
+            CURRENT_RELEASE_URL,
+            PAPER_RELEASE_URL,
+        ),
+        "llms.txt": (
+            *EXPECTED_IDENTITY.values(),
+            ARTICLE_TITLE,
+            CURRENT_RELEASE_URL,
+            PAPER_RELEASE_URL,
+        ),
         "CITATION.cff": (
             EXPECTED_IDENTITY["doi"],
+            EXPECTED_IDENTITY["pmid"],
+            EXPECTED_IDENTITY["pmcid"],
             EXPECTED_IDENTITY["repository"],
+            f'version: "{CURRENT_RELEASE}"',
+            f"date-released: {RELEASE_DATE}",
+            CURRENT_RELEASE_URL,
+        ),
+        "CHANGELOG.md": (
+            CURRENT_RELEASE,
+            PAPER_RELEASE,
+            CURRENT_RELEASE_URL,
+            PAPER_RELEASE_URL,
         ),
     }
     for relative, tokens in requirements.items():
@@ -528,8 +589,10 @@ def validate_identity(root: Path = ROOT) -> list[str]:
             issues.append(f"{relative}: required identity file is missing")
             continue
         text = path.read_text(encoding="utf-8")
+        normalized_text = " ".join(text.split())
         for token in tokens:
-            if token not in text:
+            normalized_token = " ".join(token.split())
+            if token not in text and normalized_token not in normalized_text:
                 issues.append(f"{relative}: missing canonical identity token {token}")
 
     command_files = ("README.md", "llms.txt", "AGENTS.md")
@@ -550,10 +613,8 @@ def validate_identity(root: Path = ROOT) -> list[str]:
                 issues.append(f"{relative}: missing canonical command {command}")
 
     provenance_files = (
-        "README.md",
         "docs/REPRODUCIBILITY.md",
         "data_dictionary.md",
-        "llms.txt",
     )
     for relative in provenance_files:
         path = root / relative
