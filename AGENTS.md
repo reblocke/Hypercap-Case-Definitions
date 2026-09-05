@@ -20,7 +20,7 @@ Respiratory Failure Case Definitions in Electronic Health Record Data.”
 
 ## Orientation
 
-- Start with `README.md` for the public overview and supported commands.
+- Use `README.md` for the public overview and supported commands when needed; consult only the relevant contract/dictionary entries below.
 - Use `llms.txt` for the concise machine-readable project index.
 - Read `data_dictionary.md` and `data_dictionary.csv` before changing variables
   or case-definition logic.
@@ -85,6 +85,8 @@ Graphviz `dot` executable.
 - Avoid unrelated refactors, formatting churn, and speculative abstractions.
 
 ## Verification Before Publication
+Documentation-only edits need affected-reference checks and `git diff --check`; citation edits also need CFF validation. For workflow, runner/comparator, contract, diagram, or release changes, select the applicable public checks and gate assertions below. An authorized implementation includes safe local verification and regression fixes; scientific changes and restricted execution still require their explicit decisions.
+
 
 - Run `git diff --check`.
 - Run `make check` with the locked Python 3.11 environment.
